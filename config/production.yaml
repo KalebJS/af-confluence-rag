@@ -1,4 +1,4 @@
-# Production environment configuration for Posit Connect
+# Production configuration for Confluence RAG System (Posit Connect)
 
 confluence:
   base_url: ${CONFLUENCE_BASE_URL}
@@ -7,19 +7,14 @@ confluence:
   cloud: true
 
 processing:
-  chunk_size: 1000
+  chunk_size: 1200  # Larger chunks for better context in production
   chunk_overlap: 200
   embedding_model: "all-MiniLM-L6-v2"
 
 vector_store:
   type: "chroma"
   config:
-    persist_directory: "/var/data/chroma_db"
+    persist_directory: "/var/data/chroma_db"  # Persistent storage on Posit Connect
     collection_name: "confluence_docs"
 
-query:
-  top_k_results: 10
-
-logging:
-  level: "INFO"
-  format: "json"
+top_k_results: 10

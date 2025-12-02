@@ -17,9 +17,4 @@ vector_store:
     persist_directory: "./chroma_db"
     collection_name: "confluence_docs"
 
-query:
-  top_k_results: 10
-
-logging:
-  level: "INFO"
-  format: "json"
+top_k_results: 10
