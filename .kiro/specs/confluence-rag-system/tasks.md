@@ -95,26 +95,26 @@
     - **Property 11: Unique identifier generation**
     - **Validates: Requirements 2.4, 3.3**
 
-- [ ] 6. Implement embedding generation
-  - [ ] 6.1 Create EmbeddingGenerator class using sentence-transformers
+- [x] 6. Implement embedding generation
+  - [x] 6.1 Create EmbeddingGenerator class using sentence-transformers
     - Initialize sentence-transformers model (all-MiniLM-L6-v2)
     - Implement generate_embedding method for single text
     - Implement generate_batch_embeddings for efficient batch processing
     - Add get_embedding_dimension method
     - _Requirements: 2.3, 5.1_
 
-  - [ ] 6.2 Write property test for embedding generation
+  - [x] 6.2 Write property test for embedding generation
     - **Property 7: Embedding generation completeness**
     - **Property 18: Embedding model consistency**
     - **Validates: Requirements 2.3, 5.1**
 
-- [ ] 7. Implement vector store abstraction layer
-  - [ ] 7.1 Create VectorStoreInterface abstract base class
+- [x] 7. Implement vector store abstraction layer
+  - [x] 7.1 Create VectorStoreInterface abstract base class
     - Define abstract methods: add_documents, search, delete_by_page_id, get_document_metadata
     - Add type hints and docstrings for all methods
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 7.2 Implement ChromaStore as default VectorStoreInterface implementation
+  - [x] 7.2 Implement ChromaStore as default VectorStoreInterface implementation
     - Initialize Chroma client with persistence directory
     - Implement add_documents with embedding storage
     - Implement search with similarity scoring
@@ -122,57 +122,57 @@
     - Implement get_document_metadata for lookups
     - _Requirements: 2.5, 3.1, 3.2, 3.4, 3.5, 5.2_
 
-  - [ ] 7.3 Write property test for vector store operations
+  - [x] 7.3 Write property test for vector store operations
     - **Property 9: Storage round-trip consistency**
     - **Property 12: Deduplication idempotence**
     - **Validates: Requirements 2.5, 3.4, 3.5**
 
-  - [ ] 7.4 Create VectorStoreFactory for pluggable vector store instantiation
+  - [x] 7.4 Create VectorStoreFactory for pluggable vector store instantiation
     - Implement create_vector_store factory method
     - Support 'chroma', 'faiss', 'qdrant' store types
     - Add configuration validation for each store type
     - _Requirements: 3.1_
 
-  - [ ] 7.5 Write property test for vector store factory
+  - [x] 7.5 Write property test for vector store factory
     - **Property 38: Vector store interface compliance**
     - **Property 39: Vector store factory instantiation**
     - **Validates: Design requirement for pluggable vector stores**
 
-- [ ] 8. Checkpoint - Ensure all tests pass
+- [x] 8. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Implement synchronization manager
-  - [ ] 9.1 Create SyncCoordinator class for orchestrating synchronization
+- [-] 9. Implement synchronization manager
+  - [x] 9.1 Create SyncCoordinator class for orchestrating synchronization
     - Implement sync_space method for full space synchronization
     - Implement detect_changes method using timestamp comparison
     - Implement apply_changes method for incremental updates
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [ ] 9.2 Write property test for synchronization logic
+  - [x] 9.2 Write property test for synchronization logic
     - **Property 13: Timestamp comparison correctness**
     - **Property 14: Update replaces old embeddings**
     - **Property 15: New page processing**
     - **Property 16: Deletion completeness**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4**
 
-  - [ ] 9.2 Create ChangeDetector class for identifying new, modified, and deleted pages
+  - [x] 9.2 Create ChangeDetector class for identifying new, modified, and deleted pages
     - Implement detect_new_pages method
     - Implement detect_modified_pages method
     - Implement detect_deleted_pages method
     - _Requirements: 4.1, 4.2, 4.4_
 
-  - [ ] 9.3 Create TimestampTracker for maintaining sync state
+  - [x] 9.3 Create TimestampTracker for maintaining sync state
     - Implement save_sync_state method
     - Implement load_sync_state method
     - Store sync state in vector database metadata
     - _Requirements: 4.5_
 
-  - [ ] 9.4 Write property test for sync timestamp updates
+  - [x] 9.4 Write property test for sync timestamp updates
     - **Property 17: Sync timestamp update**
     - **Validates: Requirements 4.5**
 
-- [ ] 10. Implement ingestion service orchestration
-  - [ ] 10.1 Create IngestionService class to orchestrate the full ingestion pipeline
+- [-] 10. Implement ingestion service orchestration
+  - [-] 10.1 Create IngestionService class to orchestrate the full ingestion pipeline
     - Wire together ConfluenceClient, DocumentChunker, EmbeddingGenerator, and VectorStore
     - Implement ingest_space method for full space ingestion
     - Implement ingest_page method for single page processing
