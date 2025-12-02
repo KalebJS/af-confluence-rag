@@ -1,0 +1,25 @@
+# Development environment configuration
+
+confluence:
+  base_url: ${CONFLUENCE_BASE_URL}
+  auth_token: ${CONFLUENCE_AUTH_TOKEN}
+  space_key: ${CONFLUENCE_SPACE_KEY}
+  cloud: true
+
+processing:
+  chunk_size: 1000
+  chunk_overlap: 200
+  embedding_model: "all-MiniLM-L6-v2"
+
+vector_store:
+  type: "chroma"
+  config:
+    persist_directory: "./chroma_db_dev"
+    collection_name: "confluence_docs_dev"
+
+query:
+  top_k_results: 10
+
+logging:
+  level: "DEBUG"
+  format: "text"
