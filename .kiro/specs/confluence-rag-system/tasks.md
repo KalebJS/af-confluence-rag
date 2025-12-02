@@ -74,23 +74,23 @@
     - **Validates: Requirements 1.5**
 
 - [-] 5. Implement document processing and chunking
-  - [-] 5.1 Create DocumentChunker class using LangChain RecursiveCharacterTextSplitter
+  - [x] 5.1 Create DocumentChunker class using LangChain RecursiveCharacterTextSplitter
     - Initialize text splitter with configurable chunk size and overlap
     - Implement chunk_document method with metadata preservation
     - Add HTML cleaning for Confluence storage format
     - _Requirements: 2.1, 2.2, 2.4_
 
-  - [ ] 5.2 Write property test for chunk size bounds
+  - [x] 5.2 Write property test for chunk size bounds
     - **Property 5: Chunk size bounds**
     - **Property 6: Boundary-aware splitting**
     - **Validates: Requirements 2.1, 2.2**
 
-  - [ ] 5.3 Create MetadataEnricher class for adding contextual metadata
+  - [x] 5.3 Create MetadataEnricher class for adding contextual metadata
     - Implement enrich_chunk method to add page metadata to chunks
     - Generate unique chunk_ids in format {page_id}_{chunk_index}
     - _Requirements: 2.4, 3.3_
 
-  - [ ] 5.4 Write property test for metadata preservation
+  - [x] 5.4 Write property test for metadata preservation
     - **Property 8: Metadata preservation in embeddings**
     - **Property 11: Unique identifier generation**
     - **Validates: Requirements 2.4, 3.3**
