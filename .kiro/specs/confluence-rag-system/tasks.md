@@ -7,27 +7,27 @@
   - Create .env.example file with required environment variables
   - _Requirements: 10.1, 10.2, 10.3, 10.5, 8.1_
 
-- [ ] 2. Implement core data models with Pydantic
-  - [ ] 2.1 Create Pydantic models for Page, DocumentChunk, SearchResult, and SyncState
+- [x] 2. Implement core data models with Pydantic
+  - [x] 2.1 Create Pydantic models for Page, DocumentChunk, SearchResult, and SyncState
     - Define Page model with validation for all fields
     - Define DocumentChunk model with chunk_id format validation
     - Define SearchResult model with similarity score bounds
     - Define SyncState model for tracking synchronization
     - _Requirements: 1.4, 2.4, 3.2, 4.5_
 
-  - [ ] 2.2 Write property test for Pydantic model validation
+  - [x] 2.2 Write property test for Pydantic model validation
     - **Property 3: Metadata completeness**
     - **Property 10: Metadata storage completeness**
     - **Validates: Requirements 1.4, 3.2**
 
-  - [ ] 2.3 Create configuration models (AppConfig, ConfluenceConfig, ProcessingConfig, VectorStoreConfig)
+  - [x] 2.3 Create configuration models (AppConfig, ConfluenceConfig, ProcessingConfig, VectorStoreConfig)
     - Define ConfluenceConfig with URL and authentication fields
     - Define ProcessingConfig with chunk size bounds (500-2000)
     - Define VectorStoreConfig with pluggable type field
     - Define AppConfig as main configuration container
     - _Requirements: 7.1, 7.2, 8.1_
 
-  - [ ] 2.4 Write property test for configuration validation
+  - [x] 2.4 Write property test for configuration validation
     - **Property 5: Chunk size bounds**
     - **Property 24: Environment variable loading**
     - **Validates: Requirements 2.1, 7.1**
