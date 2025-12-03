@@ -558,25 +558,178 @@ confluence-rag-system/
 
 ## Deployment
 
-This system is designed to be compatible with Posit Connect. See the deployment guide in `docs/deployment.md` for detailed instructions.
+This system is designed to be compatible with Posit Connect and other Python hosting platforms.
 
-## Project Structure
+### Posit Connect Deployment
 
+For detailed Posit Connect deployment instructions, see [docs/POSIT_CONNECT_DEPLOYMENT.md](docs/POSIT_CONNECT_DEPLOYMENT.md)
+
+**Quick deployment steps:**
+
+1. Prepare the deployment:
+```bash
+uv run python scripts/setup_deployment.py
 ```
-af-confluence-rag/
-├── src/                    # Source code
-│   ├── ingestion/         # Ingestion service components
-│   ├── query/             # Query interface components
-│   ├── models/            # Data models
-│   └── utils/             # Shared utilities
-├── tests/                 # Test suite
-├── config/                # Configuration files
-├── scripts/               # Utility scripts
-├── docs/                  # Documentation
-├── pyproject.toml         # Project dependencies
-└── .env.example           # Example environment variables
+
+2. Configure environment variables in Posit Connect:
+   - Set all required Confluence credentials
+   - Configure vector store persistence path
+   - Set Python version to 3.12
+
+3. Deploy the Streamlit app:
+```bash
+rsconnect deploy streamlit src/query/app.py \
+  --name confluence-rag \
+  --title "Confluence Documentation Search"
 ```
+
+4. Schedule the ingestion service:
+   - Create a scheduled job in Posit Connect
+   - Run `scripts/scheduled_sync.py` every 6 hours
+   - Monitor logs for sync status
+
+### Docker Deployment
+
+Build and run with Docker:
+
+```bash
+# Build image
+docker build -t confluence-rag .
+
+# Run ingestion
+docker run --env-file .env confluence-rag python scripts/ingest.py
+
+# Run query interface
+docker run --env-file .env -p 8501:8501 confluence-rag streamlit run src/query/app.py
+```
+
+### Health Checks
+
+The system includes a health check endpoint for monitoring:
+
+```bash
+uv run python scripts/health_check.py
+```
+
+This checks:
+- Confluence API connectivity
+- Vector store accessibility
+- Embedding model availability
+- Configuration validity
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue: "Confluence authentication failed"**
+- Verify your API token is correct
+- Check that the base URL includes the protocol (https://)
+- For Cloud, ensure you're using an API token, not a password
+- For Server, verify your personal access token has appropriate permissions
+
+**Issue: "Vector store not found"**
+- Run ingestion first: `uv run python scripts/ingest.py`
+- Check that `CHROMA_PERSIST_DIR` points to the correct directory
+- Verify the directory has write permissions
+
+**Issue: "No search results found"**
+- Ensure ingestion completed successfully
+- Check that you're searching the correct space
+- Try broader search terms
+- Verify the vector store contains data
+
+**Issue: "Out of memory during ingestion"**
+- Reduce `CHUNK_SIZE` in configuration
+- Process pages in smaller batches
+- Increase available system memory
+
+For more troubleshooting tips, see the [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+
+## Performance Tuning
+
+### Ingestion Performance
+
+- **Batch size**: Process pages in batches to balance memory and speed
+- **Chunk size**: Larger chunks (1500-2000 tokens) = fewer embeddings = faster ingestion
+- **Embedding model**: Use smaller models for faster processing (e.g., `all-MiniLM-L6-v2`)
+
+### Query Performance
+
+- **Top K**: Reduce the number of results for faster searches
+- **Vector store**: Consider FAISS for larger datasets (>100k chunks)
+- **Caching**: Enable embedding caching for repeated queries
+
+### Resource Requirements
+
+**Minimum:**
+- 2 CPU cores
+- 4 GB RAM
+- 10 GB disk space
+
+**Recommended:**
+- 4 CPU cores
+- 8 GB RAM
+- 50 GB disk space (for large Confluence spaces)
+
+## Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. **Fork the repository** and create a feature branch
+2. **Write tests** for new functionality (both unit and property-based tests)
+3. **Follow code style**: Use Black for formatting, Ruff for linting
+4. **Update documentation** for user-facing changes
+5. **Submit a pull request** with a clear description
+
+### Development Workflow
+
+```bash
+# Create a feature branch
+git checkout -b feature/my-new-feature
+
+# Make changes and add tests
+# ...
+
+# Run tests
+uv run pytest
+
+# Format code
+uv run black src tests scripts
+
+# Check linting
+uv run ruff check src tests scripts
+
+# Commit and push
+git commit -am "Add new feature"
+git push origin feature/my-new-feature
+```
+
+## Support
+
+For questions, issues, or feature requests:
+
+- **Issues**: Open an issue on GitHub
+- **Documentation**: Check the `docs/` directory
+- **Discussions**: Use GitHub Discussions for questions
 
 ## License
 
 See LICENSE file for details.
+
+## Acknowledgments
+
+This project uses the following open-source libraries:
+
+- **LangChain**: Document processing and text splitting
+- **Chroma**: Vector database for embeddings
+- **sentence-transformers**: Embedding generation
+- **Streamlit**: Web interface framework
+- **atlassian-python-api**: Confluence API client
+- **Hypothesis**: Property-based testing framework
+
+## Related Documentation
+
+- [Streamlit App Guide](docs/STREAMLIT_APP.md) - Detailed query interface documentation
+- [Posit Connect Deployment](docs/POSIT_CONNECT_DEPLOYMENT.md) - Deployment instructions
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [API Documentation](docs/API.md) - Component API reference
