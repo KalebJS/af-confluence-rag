@@ -1,5 +1,7 @@
 """Configuration models for the Confluence RAG system."""
 
+from typing import Any
+
 from pydantic import BaseModel, Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -7,36 +9,36 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class VectorStoreConfig(BaseModel):
     """Configuration for vector store."""
 
-    type: str = Field(..., description="Vector store type (chroma, faiss, qdrant, etc.)")
-    config: dict = Field(default_factory=dict, description="Store-specific configuration")
+    type: str = Field(default=..., description="Vector store type (chroma, faiss, qdrant, etc.)")
+    config: dict[str, Any] = Field(default_factory=dict, description="Store-specific configuration")
 
 
 class ProcessingConfig(BaseModel):
     """Configuration for document processing."""
 
     chunk_size: int = Field(
-        1000, ge=500, le=2000, description="Target chunk size in tokens"
+        default=1000, ge=500, le=2000, description="Target chunk size in tokens"
     )
     chunk_overlap: int = Field(
-        200, ge=0, le=500, description="Overlap between chunks in tokens"
+        default=200, ge=0, le=500, description="Overlap between chunks in tokens"
     )
     embedding_model: str = Field(
-        "all-MiniLM-L6-v2", description="Sentence transformer model name"
+        default="all-MiniLM-L6-v2", description="Sentence transformer model name"
     )
 
 
 class ConfluenceConfig(BaseModel):
     """Configuration for Confluence connection."""
 
-    base_url: HttpUrl = Field(..., description="Confluence instance URL")
-    auth_token: str = Field(..., description="API authentication token")
-    space_key: str = Field(..., description="Space key to sync")
-    cloud: bool = Field(True, description="True for Cloud, False for Server/Data Center")
+    base_url: HttpUrl = Field(default=..., description="Confluence instance URL")
+    auth_token: str = Field(default=..., description="API authentication token")
+    space_key: str = Field(default=..., description="Space key to sync")
+    cloud: bool = Field(default=True, description="True for Cloud, False for Server/Data Center")
 
 
 class AppConfig(BaseSettings):
     """Main application configuration.
-    
+
     This class uses pydantic-settings to load configuration from environment
     variables with the APP_ prefix.
     """
@@ -51,5 +53,5 @@ class AppConfig(BaseSettings):
     processing: ProcessingConfig
     vector_store: VectorStoreConfig
     top_k_results: int = Field(
-        10, ge=1, le=100, description="Number of search results to return"
+        default=10, ge=1, le=100, description="Number of search results to return"
     )

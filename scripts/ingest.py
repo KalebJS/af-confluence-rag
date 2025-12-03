@@ -45,12 +45,12 @@ log = structlog.stdlib.get_logger()
 
 def setup_logging(verbose: bool) -> None:
     """Configure logging based on verbosity level.
-    
+
     Args:
         verbose: If True, set log level to DEBUG, otherwise INFO
     """
     import logging
-    
+
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
         log.info("verbose_logging_enabled")
@@ -60,7 +60,7 @@ def setup_logging(verbose: bool) -> None:
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments.
-    
+
     Returns:
         Parsed arguments namespace
     """
@@ -82,7 +82,7 @@ Examples:
   python scripts/ingest.py --full
         """,
     )
-    
+
     parser.add_argument(
         "--config",
         "-c",
@@ -90,7 +90,7 @@ Examples:
         help="Path to configuration YAML file (default: config/default.yaml)",
         default=None,
     )
-    
+
     parser.add_argument(
         "--space",
         "-s",
@@ -98,7 +98,7 @@ Examples:
         help="Confluence space key to ingest (overrides config file)",
         default=None,
     )
-    
+
     parser.add_argument(
         "--full",
         "-f",
@@ -106,7 +106,7 @@ Examples:
         help="Perform full re-ingestion instead of incremental sync",
         default=False,
     )
-    
+
     parser.add_argument(
         "--verbose",
         "-v",
@@ -114,7 +114,7 @@ Examples:
         help="Enable verbose logging (DEBUG level)",
         default=False,
     )
-    
+
     parser.add_argument(
         "--page-id",
         "-p",
@@ -122,30 +122,30 @@ Examples:
         help="Ingest a single page by ID (for testing)",
         default=None,
     )
-    
+
     return parser.parse_args()
 
 
 def create_ingestion_service(config_path: str | None) -> tuple[IngestionService, str]:
     """Create and configure the ingestion service.
-    
+
     Args:
         config_path: Path to configuration file
-        
+
     Returns:
         Tuple of (IngestionService instance, space_key from config)
-        
+
     Raises:
         ConfigurationError: If configuration is invalid
         RuntimeError: If service initialization fails
     """
     log.info("initializing_ingestion_service", config_path=config_path)
-    
+
     try:
         # Load configuration
         config_loader = ConfigLoader()
         config = config_loader.load_config(config_path)
-        
+
         log.info(
             "configuration_loaded",
             confluence_url=str(config.confluence.base_url),
@@ -154,28 +154,28 @@ def create_ingestion_service(config_path: str | None) -> tuple[IngestionService,
             embedding_model=config.processing.embedding_model,
             vector_store_type=config.vector_store.type,
         )
-        
+
         # Initialize components
         confluence_client = ConfluenceClient(
             base_url=str(config.confluence.base_url),
             auth_token=config.confluence.auth_token,
             cloud=config.confluence.cloud,
         )
-        
+
         chunker = DocumentChunker(
             chunk_size=config.processing.chunk_size,
             chunk_overlap=config.processing.chunk_overlap,
         )
-        
+
         embedder = EmbeddingGenerator(
             model_name=config.processing.embedding_model,
         )
-        
+
         vector_store = VectorStoreFactory.create_vector_store(
             store_type=config.vector_store.type,
             config=config.vector_store.config,
         )
-        
+
         # Create ingestion service
         ingestion_service = IngestionService(
             confluence_client=confluence_client,
@@ -183,11 +183,11 @@ def create_ingestion_service(config_path: str | None) -> tuple[IngestionService,
             embedder=embedder,
             vector_store=vector_store,
         )
-        
+
         log.info("ingestion_service_initialized_successfully")
-        
+
         return ingestion_service, config.confluence.space_key
-        
+
     except ConfigurationError as e:
         log.error("configuration_error", error=str(e))
         raise
@@ -202,12 +202,12 @@ def ingest_space(
     incremental: bool,
 ) -> int:
     """Ingest a Confluence space.
-    
+
     Args:
         service: IngestionService instance
         space_key: Confluence space key to ingest
         incremental: If True, perform incremental sync
-        
+
     Returns:
         Exit code (0 for success, 1 for failure)
     """
@@ -216,10 +216,10 @@ def ingest_space(
         space_key=space_key,
         incremental=incremental,
     )
-    
+
     try:
         result = service.ingest_space(space_key, incremental=incremental)
-        
+
         # Log results
         if result["success"]:
             log.info(
@@ -249,7 +249,7 @@ def ingest_space(
             if len(result.get("errors", [])) > 5:
                 print(f"    ... and {len(result['errors']) - 5} more errors")
             return 1
-            
+
     except Exception as e:
         log.error("ingestion_failed", space_key=space_key, error=str(e))
         print(f"\n✗ Ingestion failed: {e}")
@@ -258,19 +258,19 @@ def ingest_space(
 
 def ingest_page(service: IngestionService, page_id: str) -> int:
     """Ingest a single Confluence page.
-    
+
     Args:
         service: IngestionService instance
         page_id: Confluence page ID to ingest
-        
+
     Returns:
         Exit code (0 for success, 1 for failure)
     """
     log.info("starting_page_ingestion", page_id=page_id)
-    
+
     try:
         result = service.ingest_page(page_id)
-        
+
         if result["success"]:
             log.info(
                 "page_ingestion_completed_successfully",
@@ -288,7 +288,7 @@ def ingest_page(service: IngestionService, page_id: str) -> int:
             )
             print(f"\n✗ Page ingestion failed: {result.get('error')}")
             return 1
-            
+
     except Exception as e:
         log.error("page_ingestion_failed", page_id=page_id, error=str(e))
         print(f"\n✗ Page ingestion failed: {e}")
@@ -297,15 +297,15 @@ def ingest_page(service: IngestionService, page_id: str) -> int:
 
 def main() -> int:
     """Main entry point for the ingestion CLI.
-    
+
     Returns:
         Exit code (0 for success, 1 for failure)
     """
     args = parse_arguments()
-    
+
     # Setup logging
     setup_logging(args.verbose)
-    
+
     log.info(
         "ingestion_cli_started",
         config=args.config,
@@ -313,20 +313,20 @@ def main() -> int:
         full=args.full,
         page_id=args.page_id,
     )
-    
+
     try:
         # Create ingestion service
         service, default_space_key = create_ingestion_service(args.config)
-        
+
         # Determine space key (command-line arg overrides config)
         space_key = args.space or default_space_key
-        
+
         # Ingest page or space
         if args.page_id:
             return ingest_page(service, args.page_id)
         else:
             return ingest_space(service, space_key, incremental=not args.full)
-            
+
     except ConfigurationError as e:
         print(f"\n✗ Configuration error: {e}")
         print("\nPlease check your configuration file and environment variables.")

@@ -7,7 +7,8 @@ import time
 from unittest.mock import Mock
 
 import structlog
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from src.utils.retry import exponential_backoff_retry
 
@@ -21,10 +22,10 @@ log = structlog.stdlib.get_logger()
 @settings(max_examples=20, deadline=None)
 def test_property_4_exponential_backoff_behavior(num_failures: int, base_delay: float):
     """Property 4: Exponential backoff behavior.
-    
+
     For any sequence of rate limit errors, the retry delays should increase
     exponentially (each delay should be at least double the previous delay).
-    
+
     **Feature: confluence-rag-system, Property 4: Exponential backoff behavior**
     **Validates: Requirements 1.5**
     """
@@ -62,9 +63,7 @@ def test_property_4_exponential_backoff_behavior(num_failures: int, base_delay: 
 
     # Verify the function eventually succeeded
     assert result == "success", "Function should eventually succeed"
-    assert call_count == num_failures + 1, (
-        f"Expected {num_failures + 1} calls, got {call_count}"
-    )
+    assert call_count == num_failures + 1, f"Expected {num_failures + 1} calls, got {call_count}"
 
     # Calculate actual delays between calls
     for i in range(1, len(call_times)):
@@ -92,7 +91,7 @@ def test_property_4_exponential_backoff_behavior(num_failures: int, base_delay: 
             # Allow ratio between 1.8 and 2.2 to account for timing variations
             assert 1.5 <= ratio <= 2.5 or expected_delay >= 60.0, (
                 f"Delay ratio should be ~2, got {ratio} "
-                f"(delays: {delays[i-1]:.3f}s -> {actual_delay:.3f}s)"
+                f"(delays: {delays[i - 1]:.3f}s -> {actual_delay:.3f}s)"
             )
 
     log.info(
@@ -106,7 +105,7 @@ def test_property_4_exponential_backoff_behavior(num_failures: int, base_delay: 
 @settings(max_examples=100, deadline=None)
 def test_exponential_backoff_max_retries(max_retries: int):
     """Test that exponential backoff respects max_retries limit.
-    
+
     This is a supporting test to ensure the retry mechanism stops after
     max_retries attempts.
     """
@@ -133,9 +132,7 @@ def test_exponential_backoff_max_retries(max_retries: int):
         pass
 
     # Verify the function was called exactly max_retries + 1 times
-    assert call_count == max_retries + 1, (
-        f"Expected {max_retries + 1} calls, got {call_count}"
-    )
+    assert call_count == max_retries + 1, f"Expected {max_retries + 1} calls, got {call_count}"
 
     log.info(
         "test_exponential_backoff_max_retries_passed",

@@ -3,12 +3,13 @@
 **Feature: confluence-rag-system**
 """
 
-import tempfile
 import shutil
+import tempfile
 
-from hypothesis import given, strategies as st, settings, assume
 import numpy as np
 import pytest
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 from src.models.page import DocumentChunk, SearchResult
 from src.processing.embedder import EmbeddingGenerator
@@ -35,10 +36,7 @@ def embedder():
 @pytest.fixture
 def chroma_store(temp_chroma_dir):
     """Create a ChromaStore instance with temporary storage."""
-    return ChromaStore(
-        persist_directory=temp_chroma_dir,
-        collection_name="test_query_collection"
-    )
+    return ChromaStore(persist_directory=temp_chroma_dir, collection_name="test_query_collection")
 
 
 @pytest.fixture
@@ -66,15 +64,19 @@ query_strategy = st.text(
     max_size=200,
 )
 
-metadata_strategy = st.fixed_dictionaries({
-    "page_title": st.text(min_size=1, max_size=100),
-    "page_url": st.from_regex(r"https://example\.com/page/\d+", fullmatch=True),
-    "author": st.text(min_size=1, max_size=50),
-    "modified_date": st.text(min_size=1, max_size=50),
-})
+metadata_strategy = st.fixed_dictionaries(
+    {
+        "page_title": st.text(min_size=1, max_size=100),
+        "page_url": st.from_regex(r"https://example\.com/page/\d+", fullmatch=True),
+        "author": st.text(min_size=1, max_size=50),
+        "modified_date": st.text(min_size=1, max_size=50),
+    }
+)
 
 
-def generate_document_chunk(page_id: str, chunk_index: int, content: str, metadata: dict) -> DocumentChunk:
+def generate_document_chunk(
+    page_id: str, chunk_index: int, content: str, metadata: dict
+) -> DocumentChunk:
     """Generate a DocumentChunk with valid data."""
     return DocumentChunk(
         chunk_id=f"{page_id}_{chunk_index}",
@@ -97,10 +99,10 @@ def test_property_19_result_count_correctness(
     num_docs: int,
 ):
     """Property 19: Result count correctness
-    
-    *For any* search query with parameter top_k, the number of returned results 
+
+    *For any* search query with parameter top_k, the number of returned results
     should be min(top_k, total_documents_in_database).
-    
+
     **Validates: Requirements 5.2**
     **Feature: confluence-rag-system, Property 19: Result count correctness**
     """
@@ -108,17 +110,14 @@ def test_property_19_result_count_correctness(
     temp_dir = tempfile.mkdtemp()
     try:
         embedder = EmbeddingGenerator(model_name="all-MiniLM-L6-v2")
-        store = ChromaStore(
-            persist_directory=temp_dir,
-            collection_name="test_result_count"
-        )
+        store = ChromaStore(persist_directory=temp_dir, collection_name="test_result_count")
         processor = QueryProcessor(embedder=embedder, vector_store=store)
-        
+
         # Add documents to the store
         if num_docs > 0:
             chunks = []
             embeddings = []
-            
+
             for i in range(num_docs):
                 chunk = generate_document_chunk(
                     page_id=f"page_{i}",
@@ -129,23 +128,22 @@ def test_property_19_result_count_correctness(
                         "page_url": f"https://example.com/page/{i}",
                         "author": "test_author",
                         "modified_date": "2024-01-01",
-                    }
+                    },
                 )
                 chunks.append(chunk)
                 embeddings.append(embedder.generate_embedding(chunk.content))
-            
+
             store.add_documents(chunks, embeddings)
-        
+
         # Process query
         results = processor.process_query(query, top_k=top_k)
-        
+
         # Property: result count should be min(top_k, num_docs)
         expected_count = min(top_k, num_docs)
         assert len(results) == expected_count, (
-            f"Expected {expected_count} results (min({top_k}, {num_docs})), "
-            f"but got {len(results)}"
+            f"Expected {expected_count} results (min({top_k}, {num_docs})), but got {len(results)}"
         )
-        
+
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -160,10 +158,10 @@ def test_property_20_search_result_completeness(
     num_docs: int,
 ):
     """Property 20: Search result completeness
-    
-    *For any* search result, it should contain non-empty values for content, 
+
+    *For any* search result, it should contain non-empty values for content,
     page_title, page_url, and similarity_score.
-    
+
     **Validates: Requirements 5.3**
     **Feature: confluence-rag-system, Property 20: Search result completeness**
     """
@@ -171,16 +169,13 @@ def test_property_20_search_result_completeness(
     temp_dir = tempfile.mkdtemp()
     try:
         embedder = EmbeddingGenerator(model_name="all-MiniLM-L6-v2")
-        store = ChromaStore(
-            persist_directory=temp_dir,
-            collection_name="test_completeness"
-        )
+        store = ChromaStore(persist_directory=temp_dir, collection_name="test_completeness")
         processor = QueryProcessor(embedder=embedder, vector_store=store)
-        
+
         # Add documents to the store
         chunks = []
         embeddings = []
-        
+
         for i in range(num_docs):
             chunk = generate_document_chunk(
                 page_id=f"page_{i}",
@@ -191,16 +186,16 @@ def test_property_20_search_result_completeness(
                     "page_url": f"https://example.com/page/{i}",
                     "author": "test_author",
                     "modified_date": "2024-01-01",
-                }
+                },
             )
             chunks.append(chunk)
             embeddings.append(embedder.generate_embedding(chunk.content))
-        
+
         store.add_documents(chunks, embeddings)
-        
+
         # Process query
         results = processor.process_query(query, top_k=10)
-        
+
         # Property: all results should have complete data
         for result in results:
             assert result.content, "Result content should not be empty"
@@ -209,7 +204,7 @@ def test_property_20_search_result_completeness(
             assert 0.0 <= result.similarity_score <= 1.0, (
                 f"Similarity score should be in [0, 1], got {result.similarity_score}"
             )
-        
+
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -224,10 +219,10 @@ def test_property_21_result_ranking_order(
     num_docs: int,
 ):
     """Property 21: Result ranking order
-    
-    *For any* list of search results, each result's similarity_score should be 
+
+    *For any* list of search results, each result's similarity_score should be
     greater than or equal to the next result's similarity_score (descending order).
-    
+
     **Validates: Requirements 5.4**
     **Feature: confluence-rag-system, Property 21: Result ranking order**
     """
@@ -235,16 +230,13 @@ def test_property_21_result_ranking_order(
     temp_dir = tempfile.mkdtemp()
     try:
         embedder = EmbeddingGenerator(model_name="all-MiniLM-L6-v2")
-        store = ChromaStore(
-            persist_directory=temp_dir,
-            collection_name="test_ranking"
-        )
+        store = ChromaStore(persist_directory=temp_dir, collection_name="test_ranking")
         processor = QueryProcessor(embedder=embedder, vector_store=store)
-        
+
         # Add documents to the store
         chunks = []
         embeddings = []
-        
+
         for i in range(num_docs):
             chunk = generate_document_chunk(
                 page_id=f"page_{i}",
@@ -255,23 +247,23 @@ def test_property_21_result_ranking_order(
                     "page_url": f"https://example.com/page/{i}",
                     "author": "test_author",
                     "modified_date": "2024-01-01",
-                }
+                },
             )
             chunks.append(chunk)
             embeddings.append(embedder.generate_embedding(chunk.content))
-        
+
         store.add_documents(chunks, embeddings)
-        
+
         # Process query
         results = processor.process_query(query, top_k=num_docs)
-        
+
         # Property: results should be in descending order by similarity score
         for i in range(len(results) - 1):
             assert results[i].similarity_score >= results[i + 1].similarity_score, (
                 f"Results not in descending order: "
                 f"result[{i}].score={results[i].similarity_score} < "
-                f"result[{i+1}].score={results[i + 1].similarity_score}"
+                f"result[{i + 1}].score={results[i + 1].similarity_score}"
             )
-        
+
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)

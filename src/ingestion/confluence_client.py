@@ -4,7 +4,7 @@ from typing import Generator, List, Optional
 
 import structlog
 from atlassian import Confluence
-from requests.exceptions import RequestException, HTTPError, Timeout, ConnectionError
+from requests.exceptions import ConnectionError, HTTPError, RequestException, Timeout
 
 from src.models.page import Page
 from src.utils.retry import exponential_backoff_retry

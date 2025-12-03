@@ -90,9 +90,7 @@ class SyncCoordinator:
             )
 
             # Detect changes
-            changes = self.detect_changes(
-                space_key, confluence_pages, last_sync_timestamp
-            )
+            changes = self.detect_changes(space_key, confluence_pages, last_sync_timestamp)
 
             log.info(
                 "changes_detected",
@@ -103,9 +101,7 @@ class SyncCoordinator:
             )
 
             # Apply changes
-            pages_added, pages_updated, pages_deleted, apply_errors = self.apply_changes(
-                changes
-            )
+            pages_added, pages_updated, pages_deleted, apply_errors = self.apply_changes(changes)
 
             errors.extend(apply_errors)
 

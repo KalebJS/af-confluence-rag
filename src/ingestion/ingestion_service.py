@@ -16,7 +16,7 @@ log = structlog.stdlib.get_logger()
 
 class IngestionService:
     """Orchestrates the full ingestion pipeline.
-    
+
     This service wires together all components needed for ingesting Confluence
     content into the vector store: client, chunker, embedder, and storage.
     """
@@ -41,7 +41,7 @@ class IngestionService:
         self._chunker: DocumentChunker = chunker
         self._embedder: EmbeddingGenerator = embedder
         self._vector_store: VectorStoreInterface = vector_store
-        
+
         # Create sync coordinator for incremental updates
         self._sync_coordinator: SyncCoordinator = SyncCoordinator(
             confluence_client=confluence_client,
@@ -49,13 +49,15 @@ class IngestionService:
             chunker=chunker,
             embedder=embedder,
         )
-        
+
         log.info("ingestion_service_initialized")
 
-    def ingest_space(self, space_key: str, incremental: bool = True) -> dict[str, int | float | bool]:
+    def ingest_space(
+        self, space_key: str, incremental: bool = True
+    ) -> dict[str, int | float | bool]:
         """
         Ingest all pages from a Confluence space.
-        
+
         This method performs either a full ingestion or an incremental sync
         based on the incremental parameter. It includes comprehensive error
         handling for database unavailability and invalid content.
@@ -86,14 +88,14 @@ class IngestionService:
         try:
             # Check database availability before starting
             self._check_database_availability()
-            
+
             if incremental:
                 # Use sync coordinator for incremental updates
                 sync_report = self._sync_coordinator.sync_space(space_key)
-                
+
                 end_time = datetime.now()
                 duration = (end_time - start_time).total_seconds()
-                
+
                 result = {
                     "pages_processed": sync_report.pages_added + sync_report.pages_updated,
                     "pages_added": sync_report.pages_added,
@@ -104,13 +106,13 @@ class IngestionService:
                     "success": sync_report.success,
                     "errors": sync_report.errors,
                 }
-                
+
                 log.info(
                     "ingest_space_completed_incremental",
                     space_key=space_key,
                     **result,
                 )
-                
+
                 return result
             else:
                 # Full re-ingestion
@@ -120,7 +122,7 @@ class IngestionService:
             # Database unavailability or critical errors
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
-            
+
             error_msg = f"Database unavailable or critical error: {str(e)}"
             log.error(
                 "ingest_space_failed_database_unavailable",
@@ -128,7 +130,7 @@ class IngestionService:
                 error=str(e),
                 duration_seconds=duration,
             )
-            
+
             return {
                 "pages_processed": 0,
                 "chunks_created": 0,
@@ -139,7 +141,7 @@ class IngestionService:
         except Exception as e:
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
-            
+
             error_msg = f"Space ingestion failed: {str(e)}"
             log.error(
                 "ingest_space_failed",
@@ -147,7 +149,7 @@ class IngestionService:
                 error=str(e),
                 duration_seconds=duration,
             )
-            
+
             return {
                 "pages_processed": 0,
                 "chunks_created": 0,
@@ -176,14 +178,14 @@ class IngestionService:
         try:
             # Retrieve all pages from Confluence
             log.info("retrieving_all_pages", space_key=space_key)
-            
+
             for page in self._confluence_client.get_space_pages(space_key):
                 try:
                     # Process and store the page
                     chunks_count = self._process_and_store_page(page)
                     pages_processed += 1
                     chunks_created += chunks_count
-                    
+
                     # Log progress every 10 pages
                     if pages_processed % 10 == 0:
                         log.info(
@@ -192,7 +194,7 @@ class IngestionService:
                             pages_processed=pages_processed,
                             chunks_created=chunks_created,
                         )
-                
+
                 except Exception as e:
                     error_msg = f"Failed to process page {page.id} ({page.title}): {str(e)}"
                     errors.append(error_msg)
@@ -238,17 +240,17 @@ class IngestionService:
         except Exception as e:
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
-            
+
             error_msg = f"Full space ingestion failed: {str(e)}"
             errors.append(error_msg)
-            
+
             log.error(
                 "full_ingest_space_failed",
                 space_key=space_key,
                 error=str(e),
                 duration_seconds=duration,
             )
-            
+
             return {
                 "pages_processed": pages_processed,
                 "chunks_created": chunks_created,
@@ -260,7 +262,7 @@ class IngestionService:
     def ingest_page(self, page_id: str) -> dict[str, int | bool]:
         """
         Ingest a single Confluence page.
-        
+
         This method is useful for testing or processing individual pages.
 
         Args:
@@ -280,7 +282,7 @@ class IngestionService:
         try:
             # Retrieve the page
             page = self._confluence_client.get_page_content(page_id)
-            
+
             # Delete existing chunks for this page (if any)
             try:
                 self._vector_store.delete_by_page_id(page_id)
@@ -291,7 +293,7 @@ class IngestionService:
                     page_id=page_id,
                     error=str(e),
                 )
-            
+
             # Process and store the page
             chunks_count = self._process_and_store_page(page)
 
@@ -313,7 +315,7 @@ class IngestionService:
         except Exception as e:
             error_msg = f"Page ingestion failed: {str(e)}"
             log.error("ingest_page_failed", page_id=page_id, error=str(e))
-            
+
             return {
                 "chunks_created": 0,
                 "success": False,
@@ -323,7 +325,7 @@ class IngestionService:
     def _check_database_availability(self) -> None:
         """
         Check if the vector database is available.
-        
+
         This method attempts a simple operation to verify database connectivity.
 
         Raises:
@@ -347,7 +349,7 @@ class IngestionService:
     def _process_and_store_page(self, page: Page) -> int:
         """
         Process a page and store it in the vector store.
-        
+
         This method includes error recovery for invalid content by continuing
         processing even if individual pages fail.
 
@@ -416,7 +418,7 @@ class IngestionService:
             )
 
             return len(chunks)
-            
+
         except ValueError as e:
             # Invalid content errors - log and re-raise
             log.error(

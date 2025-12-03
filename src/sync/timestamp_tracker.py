@@ -52,12 +52,25 @@ class TimestampTracker:
             # We use the vector store's internal storage mechanism
             # Since we can't add documents without embeddings, we'll use
             # a workaround: store it as metadata on a special document
-            from src.models.page import DocumentChunk
             import numpy as np
+
+            from src.models.page import DocumentChunk
+            from src.storage.vector_store import ChromaStore
+
+            chunk_id = f"{self.SYNC_STATE_PAGE_ID}_{sync_state.space_key}"
+
+            # Delete existing sync state for this space if it exists
+            # Chroma's upsert behavior with add_documents might not update metadata correctly
+            if isinstance(self._vector_store, ChromaStore):
+                try:
+                    self._vector_store._collection.delete(ids=[chunk_id])
+                except Exception:
+                    # It's okay if it doesn't exist
+                    pass
 
             # Create a special chunk to hold sync state
             sync_chunk = DocumentChunk(
-                chunk_id=f"{self.SYNC_STATE_PAGE_ID}_{sync_state.space_key}",
+                chunk_id=chunk_id,
                 page_id=self.SYNC_STATE_PAGE_ID,
                 content=f"Sync state for space {sync_state.space_key}",
                 metadata={
@@ -102,16 +115,38 @@ class TimestampTracker:
         log.info("loading_sync_state", space_key=space_key)
 
         try:
-            # Retrieve metadata for the special sync state document
-            metadata = self._vector_store.get_document_metadata(self.SYNC_STATE_PAGE_ID)
+            # We need to search for the specific sync state by chunk_id
+            # since multiple spaces can have sync states
+            chunk_id = f"{self.SYNC_STATE_PAGE_ID}_{space_key}"
 
-            if not metadata:
-                log.info("no_sync_state_found", space_key=space_key)
-                return None
+            # Access the underlying collection to query by chunk_id
+            from src.storage.vector_store import ChromaStore
+
+            if isinstance(self._vector_store, ChromaStore):
+                # Use Chroma's get method to retrieve by ID
+                results = self._vector_store._collection.get(ids=[chunk_id], include=["metadatas"])
+
+                if not results["ids"] or not results["metadatas"]:
+                    log.info("no_sync_state_found", space_key=space_key)
+                    return None
+
+                metadata = results["metadatas"][0]
+            else:
+                # Fallback for other vector store implementations
+                metadata = self._vector_store.get_document_metadata(self.SYNC_STATE_PAGE_ID)
+
+                if not metadata:
+                    log.info("no_sync_state_found", space_key=space_key)
+                    return None
+
+                # Verify it's for the correct space
+                if metadata.get("space_key") != space_key:
+                    log.info("no_sync_state_found", space_key=space_key)
+                    return None
 
             # Check if this is actually sync state metadata
             if not metadata.get("is_sync_state"):
-                log.warning("invalid_sync_state_metadata", space_key=space_key)
+                log.warning("invalid_sync_state_metadata", space_key=space_key, metadata=metadata)
                 return None
 
             # Parse the sync state
@@ -120,9 +155,7 @@ class TimestampTracker:
                 log.warning("missing_last_sync_timestamp", space_key=space_key)
                 return None
 
-            last_sync_timestamp = datetime.fromisoformat(
-                last_sync_str.replace("Z", "+00:00")
-            )
+            last_sync_timestamp = datetime.fromisoformat(last_sync_str.replace("Z", "+00:00"))
 
             sync_state = SyncState(
                 space_key=metadata.get("space_key", space_key),

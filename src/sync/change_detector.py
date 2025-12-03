@@ -188,9 +188,7 @@ class ChangeDetector:
         try:
             # Parse stored date (it's stored as ISO string in metadata)
             if isinstance(stored_modified_str, str):
-                stored_modified = datetime.fromisoformat(
-                    stored_modified_str.replace("Z", "+00:00")
-                )
+                stored_modified = datetime.fromisoformat(stored_modified_str.replace("Z", "+00:00"))
             else:
                 stored_modified = stored_modified_str
 

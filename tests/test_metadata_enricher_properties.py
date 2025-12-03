@@ -6,10 +6,11 @@
 from datetime import datetime, timezone
 
 import structlog
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given
+from hypothesis import strategies as st
 
-from src.processing.metadata_enricher import MetadataEnricher
 from src.models.page import Page
+from src.processing.metadata_enricher import MetadataEnricher
 
 log = structlog.stdlib.get_logger()
 
@@ -104,9 +105,7 @@ def test_property_8_metadata_preservation_in_embeddings(
 
     # Verify that metadata values match the source page
     assert chunk.metadata["page_title"] == page.title, "page_title should match source page"
-    assert (
-        chunk.metadata["page_url"] == str(page.url)
-    ), "page_url should match source page"
+    assert chunk.metadata["page_url"] == str(page.url), "page_url should match source page"
 
     # Verify additional metadata fields are present
     assert "author" in chunk.metadata, "metadata should contain author"
@@ -154,9 +153,9 @@ def test_property_11_unique_identifier_generation(page: Page, num_chunks: int):
     # Verify that each chunk_id follows the format {page_id}_{chunk_index}
     for idx, chunk in enumerate(chunks):
         expected_chunk_id = f"{page.id}_{idx}"
-        assert (
-            chunk.chunk_id == expected_chunk_id
-        ), f"chunk_id should be {expected_chunk_id}, got {chunk.chunk_id}"
+        assert chunk.chunk_id == expected_chunk_id, (
+            f"chunk_id should be {expected_chunk_id}, got {chunk.chunk_id}"
+        )
 
         # Verify the format by checking for underscore
         assert "_" in chunk.chunk_id, "chunk_id should contain underscore"
@@ -170,21 +169,19 @@ def test_property_11_unique_identifier_generation(page: Page, num_chunks: int):
         reconstructed_page_id = "_".join(parts[:-1])
         chunk_index_str = parts[-1]
 
-        assert (
-            reconstructed_page_id == page.id
-        ), f"page_id in chunk_id should be {page.id}, got {reconstructed_page_id}"
-        assert (
-            chunk_index_str == str(idx)
-        ), f"chunk_index in chunk_id should be {idx}, got {chunk_index_str}"
+        assert reconstructed_page_id == page.id, (
+            f"page_id in chunk_id should be {page.id}, got {reconstructed_page_id}"
+        )
+        assert chunk_index_str == str(idx), (
+            f"chunk_index in chunk_id should be {idx}, got {chunk_index_str}"
+        )
 
 
 @given(
     page=page_strategy(),
     chunk_texts=st.lists(chunk_text_strategy, min_size=1, max_size=10),
 )
-def test_property_8_metadata_preservation_multiple_chunks(
-    page: Page, chunk_texts: list[str]
-):
+def test_property_8_metadata_preservation_multiple_chunks(page: Page, chunk_texts: list[str]):
     """Property 8: Metadata preservation in embeddings (multiple chunks).
 
     *For any* set of chunks from the same page, all chunks should preserve
@@ -211,32 +208,26 @@ def test_property_8_metadata_preservation_multiple_chunks(
         assert "page_title" in chunk.metadata, f"Chunk {idx}: metadata should contain page_title"
         assert "page_url" in chunk.metadata, f"Chunk {idx}: metadata should contain page_url"
         assert "author" in chunk.metadata, f"Chunk {idx}: metadata should contain author"
-        assert (
-            "created_date" in chunk.metadata
-        ), f"Chunk {idx}: metadata should contain created_date"
-        assert (
-            "modified_date" in chunk.metadata
-        ), f"Chunk {idx}: metadata should contain modified_date"
+        assert "created_date" in chunk.metadata, (
+            f"Chunk {idx}: metadata should contain created_date"
+        )
+        assert "modified_date" in chunk.metadata, (
+            f"Chunk {idx}: metadata should contain modified_date"
+        )
         assert "space_key" in chunk.metadata, f"Chunk {idx}: metadata should contain space_key"
         assert "version" in chunk.metadata, f"Chunk {idx}: metadata should contain version"
 
         # Verify metadata values match the source page
-        assert (
-            chunk.metadata["page_title"] == page.title
-        ), f"Chunk {idx}: page_title should match"
-        assert (
-            chunk.metadata["page_url"] == str(page.url)
-        ), f"Chunk {idx}: page_url should match"
+        assert chunk.metadata["page_title"] == page.title, f"Chunk {idx}: page_title should match"
+        assert chunk.metadata["page_url"] == str(page.url), f"Chunk {idx}: page_url should match"
         assert chunk.metadata["author"] == page.author, f"Chunk {idx}: author should match"
-        assert (
-            chunk.metadata["created_date"] == page.created_date.isoformat()
-        ), f"Chunk {idx}: created_date should match"
-        assert (
-            chunk.metadata["modified_date"] == page.modified_date.isoformat()
-        ), f"Chunk {idx}: modified_date should match"
-        assert (
-            chunk.metadata["space_key"] == page.space_key
-        ), f"Chunk {idx}: space_key should match"
+        assert chunk.metadata["created_date"] == page.created_date.isoformat(), (
+            f"Chunk {idx}: created_date should match"
+        )
+        assert chunk.metadata["modified_date"] == page.modified_date.isoformat(), (
+            f"Chunk {idx}: modified_date should match"
+        )
+        assert chunk.metadata["space_key"] == page.space_key, f"Chunk {idx}: space_key should match"
         assert chunk.metadata["version"] == page.version, f"Chunk {idx}: version should match"
 
         # Verify chunk-specific fields

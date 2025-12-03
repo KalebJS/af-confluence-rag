@@ -8,7 +8,8 @@ from typing import List
 from unittest.mock import MagicMock, Mock
 
 import structlog
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from src.ingestion.confluence_client import ConfluenceClient
 from src.models.page import Page
@@ -61,15 +62,13 @@ def confluence_page_response_strategy(draw):
     st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("Lu",))),
 )
 @settings(max_examples=100)
-def test_property_1_complete_page_retrieval(
-    confluence_pages: List[dict], space_key: str
-):
+def test_property_1_complete_page_retrieval(confluence_pages: List[dict], space_key: str):
     """Property 1: Complete page retrieval.
-    
+
     For any Confluence space, when the system retrieves pages, the count of
     retrieved pages should equal the total page count reported by the
     Confluence API.
-    
+
     **Feature: confluence-rag-system, Property 1: Complete page retrieval**
     **Validates: Requirements 1.2**
     """
@@ -93,9 +92,9 @@ def test_property_1_complete_page_retrieval(
     retrieved_pages = list(client.get_space_pages(space_key))
 
     # Property: Retrieved count should equal expected count
-    assert len(retrieved_pages) == len(
-        confluence_pages
-    ), f"Expected {len(confluence_pages)} pages, got {len(retrieved_pages)}"
+    assert len(retrieved_pages) == len(confluence_pages), (
+        f"Expected {len(confluence_pages)} pages, got {len(retrieved_pages)}"
+    )
 
     # Verify all pages are Page instances
     for page in retrieved_pages:
@@ -113,14 +112,12 @@ def test_property_1_complete_page_retrieval(
     st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("Lu",))),
 )
 @settings(max_examples=100)
-def test_property_2_pagination_completeness(
-    num_pages: int, pages_per_batch: int, space_key: str
-):
+def test_property_2_pagination_completeness(num_pages: int, pages_per_batch: int, space_key: str):
     """Property 2: Pagination completeness.
-    
+
     For any paginated API response, the system should retrieve all pages by
     following pagination links until no next page exists.
-    
+
     **Feature: confluence-rag-system, Property 2: Pagination completeness**
     **Validates: Requirements 1.3**
     """
