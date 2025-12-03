@@ -171,26 +171,26 @@
     - **Property 17: Sync timestamp update**
     - **Validates: Requirements 4.5**
 
-- [-] 10. Implement ingestion service orchestration
-  - [-] 10.1 Create IngestionService class to orchestrate the full ingestion pipeline
+- [x] 10. Implement ingestion service orchestration
+  - [x] 10.1 Create IngestionService class to orchestrate the full ingestion pipeline
     - Wire together ConfluenceClient, DocumentChunker, EmbeddingGenerator, and VectorStore
     - Implement ingest_space method for full space ingestion
     - Implement ingest_page method for single page processing
     - Add progress tracking and logging
     - _Requirements: 1.1, 1.2, 2.1, 2.3, 2.5_
 
-  - [ ] 10.2 Add comprehensive error handling and logging
+  - [x] 10.2 Add comprehensive error handling and logging
     - Implement error recovery for invalid content
     - Add summary statistics logging
     - Handle database unavailability gracefully
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-  - [ ] 10.3 Write property test for error recovery
+  - [x] 10.3 Write property test for error recovery
     - **Property 33: Graceful error recovery**
     - **Property 35: Completion logging**
     - **Validates: Requirements 9.3, 9.5**
 
-  - [ ] 10.4 Create CLI script for running ingestion (scripts/ingest.py)
+  - [x] 10.4 Create CLI script for running ingestion (scripts/ingest.py)
     - Add command-line argument parsing
     - Support configuration file path argument
     - Add verbose logging option
