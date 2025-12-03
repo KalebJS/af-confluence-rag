@@ -20,42 +20,46 @@ from src.processing.chunker import DocumentChunker
 from src.processing.embedder import EmbeddingGenerator
 from src.storage.vector_store import VectorStoreFactory
 from src.utils.config_loader import ConfigLoader, ConfigurationError
-
-# Configure structlog
-structlog.configure(
-    processors=[
-        structlog.stdlib.filter_by_level,
-        structlog.stdlib.add_logger_name,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer(),
-    ],
-    wrapper_class=structlog.stdlib.BoundLogger,
-    context_class=dict,
-    logger_factory=structlog.stdlib.LoggerFactory(),
-    cache_logger_on_first_use=True,
-)
+from src.utils.logging_config import configure_logging
 
 log = structlog.stdlib.get_logger()
 
 
-def setup_logging(verbose: bool) -> None:
-    """Configure logging based on verbosity level.
+def setup_logging(verbose: bool, config_path: str | None) -> None:
+    """Configure logging based on verbosity level and config.
 
     Args:
-        verbose: If True, set log level to DEBUG, otherwise INFO
+        verbose: If True, set log level to DEBUG, otherwise use config
+        config_path: Path to configuration file
     """
-    import logging
+    try:
+        # Load configuration to get logging settings
+        config_loader = ConfigLoader()
+        config = config_loader.load_config(config_path)
 
-    if verbose:
-        logging.basicConfig(level=logging.DEBUG)
-        log.info("verbose_logging_enabled")
-    else:
-        logging.basicConfig(level=logging.INFO)
+        # Override log level if verbose flag is set
+        log_level = "DEBUG" if verbose else config.logging.log_level
+
+        # Configure logging
+        configure_logging(
+            log_level=log_level,
+            json_logs=config.logging.json_logs,
+            log_file=config.logging.log_file,
+        )
+
+        log.info(
+            "logging_configured",
+            log_level=log_level,
+            json_logs=config.logging.json_logs,
+            log_file=config.logging.log_file,
+        )
+    except Exception as e:
+        # Fallback to basic logging if config loading fails
+        configure_logging(
+            log_level="DEBUG" if verbose else "INFO",
+            json_logs=False,
+        )
+        log.warning("failed_to_load_logging_config", error=str(e))
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -304,7 +308,7 @@ def main() -> int:
     args = parse_arguments()
 
     # Setup logging
-    setup_logging(args.verbose)
+    setup_logging(args.verbose, args.config)
 
     log.info(
         "ingestion_cli_started",

@@ -17,4 +17,9 @@ vector_store:
     persist_directory: "/var/data/chroma_db"  # Persistent storage on Posit Connect
     collection_name: "confluence_docs"
 
+logging:
+  log_level: "INFO"
+  json_logs: true  # JSON logs for production monitoring
+  log_file: "/var/log/confluence_rag.log"  # Log to file with rotation
+
 top_k_results: 10

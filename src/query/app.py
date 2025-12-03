@@ -15,6 +15,7 @@ from src.query.query_processor import QueryProcessor
 from src.query.result_formatter import ResultFormatter
 from src.storage.vector_store import VectorStoreFactory
 from src.utils.config_loader import ConfigLoader, ConfigurationError
+from src.utils.logging_config import configure_logging
 
 log = structlog.stdlib.get_logger()
 
@@ -37,7 +38,18 @@ def initialize_app() -> tuple[QueryProcessor, ResultFormatter, AppConfig]:
         config_loader = ConfigLoader()
         config = config_loader.load_config()
 
-        log.info("app_configuration_loaded", vector_store_type=config.vector_store.type)
+        # Configure logging
+        configure_logging(
+            log_level=config.logging.log_level,
+            json_logs=config.logging.json_logs,
+            log_file=config.logging.log_file,
+        )
+
+        log.info(
+            "app_configuration_loaded",
+            vector_store_type=config.vector_store.type,
+            log_level=config.logging.log_level,
+        )
 
         # Initialize embedding generator
         embedder = EmbeddingGenerator(model_name=config.processing.embedding_model)

@@ -36,6 +36,23 @@ class ConfluenceConfig(BaseModel):
     cloud: bool = Field(default=True, description="True for Cloud, False for Server/Data Center")
 
 
+class LoggingConfig(BaseModel):
+    """Configuration for logging."""
+
+    log_level: str = Field(
+        default="INFO",
+        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+    json_logs: bool = Field(
+        default=True,
+        description="If True, output JSON logs. If False, use console format.",
+    )
+    log_file: str | None = Field(
+        default=None,
+        description="Optional path to log file. If None, logs only to stdout.",
+    )
+
+
 class AppConfig(BaseSettings):
     """Main application configuration.
 
@@ -52,6 +69,7 @@ class AppConfig(BaseSettings):
     confluence: ConfluenceConfig
     processing: ProcessingConfig
     vector_store: VectorStoreConfig
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
     top_k_results: int = Field(
         default=10, ge=1, le=100, description="Number of search results to return"
     )

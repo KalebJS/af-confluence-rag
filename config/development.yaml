@@ -17,4 +17,9 @@ vector_store:
     persist_directory: "./chroma_db_dev"
     collection_name: "confluence_docs_dev"
 
+logging:
+  log_level: "DEBUG"  # More verbose logging for development
+  json_logs: false  # Console format for easier reading
+  log_file: null
+
 top_k_results: 5  # Fewer results for development
