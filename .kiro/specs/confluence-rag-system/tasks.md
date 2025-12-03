@@ -196,26 +196,26 @@
     - Add verbose logging option
     - _Requirements: 7.1, 7.2_
 
-- [ ] 11. Implement query processing
-  - [ ] 11.1 Create QueryProcessor class for handling search queries
+- [x] 11. Implement query processing
+  - [x] 11.1 Create QueryProcessor class for handling search queries
     - Implement process_query method that embeds query and searches vector store
     - Add result ranking by similarity score
     - Implement result filtering and deduplication
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-  - [ ] 11.2 Write property test for query processing
+  - [x] 11.2 Write property test for query processing
     - **Property 19: Result count correctness**
     - **Property 20: Search result completeness**
     - **Property 21: Result ranking order**
     - **Validates: Requirements 5.2, 5.3, 5.4**
 
-  - [ ] 11.3 Create ResultFormatter class for formatting search results
+  - [x] 11.3 Create ResultFormatter class for formatting search results
     - Implement format_results method for display
     - Create result cards with metadata
     - Add URL validation and formatting
     - _Requirements: 5.3, 5.5, 6.4_
 
-  - [ ] 11.4 Write property test for result formatting
+  - [x] 11.4 Write property test for result formatting
     - **Property 22: Valid result URLs**
     - **Property 23: Result metadata display**
     - **Validates: Requirements 5.5, 6.4**
