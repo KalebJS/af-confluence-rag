@@ -415,16 +415,15 @@ def test_property_38_vector_store_interface_compliance(temp_chroma_dir):
 def test_property_39_vector_store_factory_instantiation(temp_chroma_dir):
     """Property 39: Vector store factory instantiation
 
-    *For any* valid vector_store_type in configuration ('chroma', 'faiss', 'qdrant'),
-    the VectorStoreFactory should successfully create an instance implementing
-    VectorStoreInterface.
+    The VectorStoreFactory should successfully create a ChromaDB instance
+    implementing VectorStoreInterface.
 
-    **Validates: Design requirement for pluggable vector stores**
+    **Validates: ChromaDB vector store creation**
     **Feature: confluence-rag-system, Property 39: Vector store factory instantiation**
     """
     from src.storage.vector_store import VectorStoreFactory, VectorStoreInterface
 
-    # Test Chroma (implemented)
+    # Test Chroma (only supported store type)
     chroma_store = VectorStoreFactory.create_vector_store(
         "chroma", {"persist_directory": temp_chroma_dir, "collection_name": "test_chroma"}
     )
@@ -432,19 +431,11 @@ def test_property_39_vector_store_factory_instantiation(temp_chroma_dir):
         "Chroma store should implement VectorStoreInterface"
     )
 
-    # Test FAISS (not implemented yet, should raise NotImplementedError)
-    with pytest.raises(NotImplementedError, match="FAISS"):
-        VectorStoreFactory.create_vector_store("faiss", {"index_path": "./faiss_index"})
-
-    # Test Qdrant (not implemented yet, should raise NotImplementedError)
-    with pytest.raises(NotImplementedError, match="Qdrant"):
-        VectorStoreFactory.create_vector_store(
-            "qdrant", {"url": "http://localhost:6333", "collection_name": "test"}
-        )
-
-    # Test invalid store type
-    with pytest.raises(ValueError, match="Unsupported vector store type"):
-        VectorStoreFactory.create_vector_store("invalid_type", {})
+    # Test that store_type parameter is ignored (backwards compatibility)
+    store_any_type = VectorStoreFactory.create_vector_store(
+        "anything", {"persist_directory": temp_chroma_dir, "collection_name": "test_any"}
+    )
+    assert isinstance(store_any_type, VectorStoreInterface)
 
 
 def test_factory_case_insensitive(temp_chroma_dir):

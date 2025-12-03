@@ -310,55 +310,54 @@ class ChromaStore(VectorStoreInterface):
             raise RuntimeError(f"Failed to retrieve metadata from Chroma: {e}") from e
 
 
-class VectorStoreFactory:
-    """Factory for creating vector store instances.
+def create_vector_store(config: dict) -> ChromaStore:
+    """Create a ChromaDB vector store instance.
 
-    This factory enables pluggable vector database backends by instantiating
-    the appropriate implementation based on configuration.
+    Args:
+        config: Configuration with 'persist_directory' and optional 'collection_name'
+
+    Returns:
+        ChromaStore instance
+
+    Raises:
+        ValueError: If required configuration is missing
+        RuntimeError: If store initialization fails
+
+    Examples:
+        >>> store = create_vector_store({
+        ...     'persist_directory': './chroma_db',
+        ...     'collection_name': 'docs'
+        ... })
     """
+    persist_directory = config.get("persist_directory")
+    if not persist_directory:
+        raise ValueError("Chroma store requires 'persist_directory' in config")
+
+    collection_name = config.get("collection_name", "confluence_docs")
+
+    log.info(
+        "creating_chroma_store",
+        persist_directory=persist_directory,
+        collection_name=collection_name,
+    )
+
+    return ChromaStore(
+        persist_directory=persist_directory,
+        collection_name=collection_name,
+    )
+
+
+# Backwards compatibility alias
+class VectorStoreFactory:
+    """Deprecated: Use create_vector_store() function instead."""
 
     @staticmethod
-    def create_vector_store(store_type: str, config: dict) -> VectorStoreInterface:
-        """Create a vector store instance based on type.
+    def create_vector_store(store_type: str, config: dict) -> ChromaStore:
+        """Create a vector store instance.
 
         Args:
-            store_type: One of 'chroma', 'faiss', 'qdrant', etc.
-            config: Configuration dictionary for the specific store
-
-        Returns:
-            VectorStoreInterface implementation
-
-        Raises:
-            ValueError: If store_type is not supported
-            RuntimeError: If store initialization fails
-
-        Examples:
-            >>> factory = VectorStoreFactory()
-            >>> store = factory.create_vector_store(
-            ...     'chroma',
-            ...     {'persist_directory': './chroma_db', 'collection_name': 'docs'}
-            ... )
-        """
-        store_type = store_type.lower()
-
-        if store_type == "chroma":
-            return VectorStoreFactory._create_chroma_store(config)
-        elif store_type == "faiss":
-            return VectorStoreFactory._create_faiss_store(config)
-        elif store_type == "qdrant":
-            return VectorStoreFactory._create_qdrant_store(config)
-        else:
-            raise ValueError(
-                f"Unsupported vector store type: {store_type}. "
-                f"Supported types: chroma, faiss, qdrant"
-            )
-
-    @staticmethod
-    def _create_chroma_store(config: dict) -> ChromaStore:
-        """Create a ChromaStore instance.
-
-        Args:
-            config: Configuration with 'persist_directory' and optional 'collection_name'
+            store_type: Ignored (only 'chroma' is supported)
+            config: Configuration dictionary for ChromaDB
 
         Returns:
             ChromaStore instance
@@ -366,57 +365,4 @@ class VectorStoreFactory:
         Raises:
             ValueError: If required configuration is missing
         """
-        persist_directory = config.get("persist_directory")
-        if not persist_directory:
-            raise ValueError("Chroma store requires 'persist_directory' in config")
-
-        collection_name = config.get("collection_name", "confluence_docs")
-
-        log.info(
-            "creating_chroma_store",
-            persist_directory=persist_directory,
-            collection_name=collection_name,
-        )
-
-        return ChromaStore(
-            persist_directory=persist_directory,
-            collection_name=collection_name,
-        )
-
-    @staticmethod
-    def _create_faiss_store(config: dict) -> VectorStoreInterface:
-        """Create a FAISS vector store instance.
-
-        Args:
-            config: Configuration with 'index_path' and other FAISS-specific settings
-
-        Returns:
-            FAISS vector store implementation
-
-        Raises:
-            NotImplementedError: FAISS implementation not yet available
-        """
-        log.warning("faiss_store_not_implemented")
-        raise NotImplementedError(
-            "FAISS vector store is not yet implemented. "
-            "Please use 'chroma' as the vector store type."
-        )
-
-    @staticmethod
-    def _create_qdrant_store(config: dict) -> VectorStoreInterface:
-        """Create a Qdrant vector store instance.
-
-        Args:
-            config: Configuration with 'url', 'collection_name', and other Qdrant settings
-
-        Returns:
-            Qdrant vector store implementation
-
-        Raises:
-            NotImplementedError: Qdrant implementation not yet available
-        """
-        log.warning("qdrant_store_not_implemented")
-        raise NotImplementedError(
-            "Qdrant vector store is not yet implemented. "
-            "Please use 'chroma' as the vector store type."
-        )
+        return create_vector_store(config)
