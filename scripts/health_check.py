@@ -27,14 +27,11 @@ from pathlib import Path
 
 import structlog
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from ingestion.confluence_client import ConfluenceClient
-from processing.embedder import EmbeddingGenerator
-from query.query_processor import QueryProcessor
-from storage.vector_store import VectorStoreFactory
-from utils.config_loader import ConfigLoader
+from src.ingestion.confluence_client import ConfluenceClient
+from src.processing.embedder import EmbeddingGenerator
+from src.query.query_processor import QueryProcessor
+from src.storage.vector_store import VectorStoreFactory
+from src.utils.config_loader import ConfigLoader
 
 log = structlog.stdlib.get_logger()
 

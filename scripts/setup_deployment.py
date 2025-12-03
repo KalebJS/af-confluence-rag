@@ -18,16 +18,13 @@ from pathlib import Path
 
 import structlog
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from ingestion.confluence_client import ConfluenceClient
-from ingestion.ingestion_service import IngestionService
-from processing.chunker import DocumentChunker
-from processing.embedder import EmbeddingGenerator
-from processing.metadata_enricher import MetadataEnricher
-from storage.vector_store import ChromaStore, VectorStoreFactory
-from utils.config_loader import ConfigLoader
+from src.ingestion.confluence_client import ConfluenceClient
+from src.ingestion.ingestion_service import IngestionService
+from src.processing.chunker import DocumentChunker
+from src.processing.embedder import EmbeddingGenerator
+from src.processing.metadata_enricher import MetadataEnricher
+from src.storage.vector_store import ChromaStore, VectorStoreFactory
+from src.utils.config_loader import ConfigLoader
 
 log = structlog.stdlib.get_logger()
 

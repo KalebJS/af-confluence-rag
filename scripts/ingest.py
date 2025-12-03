@@ -7,12 +7,8 @@ documentation into the vector database.
 
 import argparse
 import sys
-from pathlib import Path
 
 import structlog
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.ingestion.confluence_client import ConfluenceClient
 from src.ingestion.ingestion_service import IngestionService

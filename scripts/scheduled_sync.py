@@ -16,22 +16,18 @@ Usage:
 import argparse
 import sys
 from datetime import datetime
-from pathlib import Path
 
 import structlog
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from ingestion.confluence_client import ConfluenceClient
-from processing.chunker import DocumentChunker
-from processing.embedder import EmbeddingGenerator
-from processing.metadata_enricher import MetadataEnricher
-from storage.vector_store import VectorStoreFactory
-from sync.change_detector import ChangeDetector
-from sync.sync_coordinator import SyncCoordinator
-from sync.timestamp_tracker import TimestampTracker
-from utils.config_loader import ConfigLoader
+from src.ingestion.confluence_client import ConfluenceClient
+from src.processing.chunker import DocumentChunker
+from src.processing.embedder import EmbeddingGenerator
+from src.processing.metadata_enricher import MetadataEnricher
+from src.storage.vector_store import VectorStoreFactory
+from src.sync.change_detector import ChangeDetector
+from src.sync.sync_coordinator import SyncCoordinator
+from src.sync.timestamp_tracker import TimestampTracker
+from src.utils.config_loader import ConfigLoader
 
 log = structlog.stdlib.get_logger()
 
