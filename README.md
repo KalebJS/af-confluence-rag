@@ -82,9 +82,34 @@ uv run python scripts/ingest.py
 
 ### Running the Query Interface
 
+#### Quick Start
+
+```bash
+uv run python scripts/run_app.py
+```
+
+This script will:
+- Verify environment variables are set
+- Check vector store accessibility
+- Start the Streamlit application
+
+#### Manual Start
+
 ```bash
 uv run streamlit run src/query/app.py
 ```
+
+The application will be available at `http://localhost:8501`
+
+#### Features
+
+- **Natural Language Search**: Enter questions in plain English
+- **Configurable Results**: Adjust the number of results (1-50)
+- **Search History**: View and re-run previous searches
+- **Rich Metadata**: View page details, authors, and modification dates
+- **Direct Links**: Click results to open source Confluence pages
+
+For detailed usage instructions, see [docs/STREAMLIT_APP.md](docs/STREAMLIT_APP.md)
 
 ## Development
 
