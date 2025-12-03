@@ -267,32 +267,32 @@
     - **Property 31: Error log format**
     - **Validates: Requirements 9.1**
 
-- [ ] 15. Create deployment configuration for Posit Connect
-  - [ ] 15.1 Create requirements.txt from pyproject.toml
+- [x] 15. Create deployment configuration for Posit Connect
+  - [x] 15.1 Create requirements.txt from pyproject.toml
     - Export all dependencies with versions
     - Ensure Python 3.12 compatibility
     - _Requirements: 8.1, 8.3_
 
-  - [ ] 15.2 Write property test for deployment requirements
+  - [x] 15.2 Write property test for deployment requirements
     - **Property 28: Dependency file presence**
     - **Property 29: Python version verification**
     - **Validates: Requirements 8.1, 8.3**
 
-  - [ ] 15.3 Create Posit Connect deployment guide
+  - [x] 15.3 Create Posit Connect deployment guide
     - Document environment variable configuration
     - Document persistent storage setup for vector database
     - Document scheduled execution setup for ingestion
     - Document Streamlit app deployment
     - _Requirements: 8.4, 8.5_
 
-  - [ ] 15.4 Create example deployment scripts
+  - [x] 15.4 Create example deployment scripts
     - Create script for initial setup
     - Create script for scheduled synchronization
     - Add health check endpoints
     - _Requirements: 8.5_
 
-- [ ] 16. Create comprehensive documentation
-  - [ ] 16.1 Write README.md with setup instructions
+- [-] 16. Create comprehensive documentation
+  - [-] 16.1 Write README.md with setup instructions
     - Add project overview and architecture diagram
     - Add installation instructions using uv
     - Add configuration guide
