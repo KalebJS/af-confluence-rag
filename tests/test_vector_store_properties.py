@@ -380,29 +380,29 @@ def test_add_empty_documents_list(chroma_store):
     chroma_store.add_documents([], [])
 
 
-# Tests for VectorStoreFactory
+# Tests for ChromaStore
 
 
 def test_property_38_vector_store_interface_compliance(temp_chroma_dir):
     """Property 38: Vector store interface compliance
 
-    *For any* vector store implementation, it should implement all methods
-    defined in VectorStoreInterface (add_documents, search, delete_by_page_id,
-    get_document_metadata).
+    ChromaStore should implement all methods defined in VectorStoreInterface
+    (add_documents, search, delete_by_page_id, get_document_metadata).
 
-    **Validates: Design requirement for pluggable vector stores**
+    **Validates: Design requirement for vector store interface**
     **Feature: confluence-rag-system, Property 38: Vector store interface compliance**
     """
-    from src.storage.vector_store import VectorStoreFactory, VectorStoreInterface
+    from src.storage.vector_store import ChromaStore, VectorStoreInterface
 
-    # Create a Chroma store via factory
-    store = VectorStoreFactory.create_vector_store(
-        "chroma", {"persist_directory": temp_chroma_dir, "collection_name": "test_interface"}
+    # Create a Chroma store
+    store = ChromaStore(
+        persist_directory=temp_chroma_dir,
+        collection_name="test_interface",
     )
 
     # Verify it implements VectorStoreInterface
     assert isinstance(store, VectorStoreInterface), (
-        "Factory-created store should implement VectorStoreInterface"
+        "ChromaStore should implement VectorStoreInterface"
     )
 
     # Verify all required methods exist and are callable
@@ -412,53 +412,30 @@ def test_property_38_vector_store_interface_compliance(temp_chroma_dir):
         assert callable(getattr(store, method_name)), f"Method '{method_name}' should be callable"
 
 
-def test_property_39_vector_store_factory_instantiation(temp_chroma_dir):
-    """Property 39: Vector store factory instantiation
+def test_property_39_chroma_store_instantiation(temp_chroma_dir):
+    """Property 39: ChromaStore instantiation
 
-    The VectorStoreFactory should successfully create a ChromaDB instance
-    implementing VectorStoreInterface.
+    ChromaStore should successfully create an instance implementing VectorStoreInterface.
 
     **Validates: ChromaDB vector store creation**
-    **Feature: confluence-rag-system, Property 39: Vector store factory instantiation**
+    **Feature: confluence-rag-system, Property 39: Vector store instantiation**
     """
-    from src.storage.vector_store import VectorStoreFactory, VectorStoreInterface
+    from src.storage.vector_store import ChromaStore, VectorStoreInterface
 
-    # Test Chroma (only supported store type)
-    chroma_store = VectorStoreFactory.create_vector_store(
-        "chroma", {"persist_directory": temp_chroma_dir, "collection_name": "test_chroma"}
+    # Test ChromaStore creation
+    chroma_store = ChromaStore(
+        persist_directory=temp_chroma_dir,
+        collection_name="test_chroma",
     )
     assert isinstance(chroma_store, VectorStoreInterface), (
         "Chroma store should implement VectorStoreInterface"
     )
 
-    # Test that store_type parameter is ignored (backwards compatibility)
-    store_any_type = VectorStoreFactory.create_vector_store(
-        "anything", {"persist_directory": temp_chroma_dir, "collection_name": "test_any"}
-    )
-    assert isinstance(store_any_type, VectorStoreInterface)
 
+def test_chroma_store_missing_config():
+    """Test that ChromaStore validates required configuration."""
+    from src.storage.vector_store import ChromaStore
 
-def test_factory_case_insensitive(temp_chroma_dir):
-    """Test that factory handles case-insensitive store types."""
-    from src.storage.vector_store import VectorStoreFactory, VectorStoreInterface
-
-    # Test various casings
-    for store_type in ["chroma", "CHROMA", "Chroma", "ChRoMa"]:
-        store = VectorStoreFactory.create_vector_store(
-            store_type,
-            {"persist_directory": temp_chroma_dir, "collection_name": f"test_{store_type}"},
-        )
-        assert isinstance(store, VectorStoreInterface)
-
-
-def test_factory_missing_config(temp_chroma_dir):
-    """Test that factory validates required configuration."""
-    from src.storage.vector_store import VectorStoreFactory
-
-    # Chroma requires persist_directory
-    with pytest.raises(ValueError, match="persist_directory"):
-        VectorStoreFactory.create_vector_store("chroma", {})
-
-    # Empty config should also fail
-    with pytest.raises(ValueError, match="persist_directory"):
-        VectorStoreFactory.create_vector_store("chroma", {"collection_name": "test"})
+    # ChromaStore requires persist_directory
+    with pytest.raises(TypeError):
+        ChromaStore()

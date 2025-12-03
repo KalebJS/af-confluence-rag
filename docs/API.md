@@ -14,7 +14,6 @@ This document provides detailed API reference for all public classes and methods
 - [Storage Components](#storage-components)
   - [VectorStoreInterface](#vectorstoreinterface)
   - [ChromaStore](#chromastore)
-  - [VectorStoreFactory](#vectorstorefactory)
 - [Synchronization Components](#synchronization-components)
   - [SyncCoordinator](#synccoordinator)
   - [ChangeDetector](#changedetector)
@@ -432,40 +431,6 @@ Returns statistics about the collection.
 ```python
 stats = store.get_collection_stats()
 print(f"Total documents: {stats['count']}")
-```
-
----
-
-### VectorStoreFactory
-
-Factory for creating vector store instances.
-
-**Location:** `src/storage/vector_store.py`
-
-#### Methods
-
-##### `create_vector_store(store_type: str, config: dict) -> VectorStoreInterface`
-
-Creates a vector store instance based on type.
-
-**Parameters:**
-- `store_type` (str): One of 'chroma', 'faiss', 'qdrant'
-- `config` (dict): Store-specific configuration
-
-**Returns:**
-- `VectorStoreInterface`: Vector store implementation
-
-**Example:**
-```python
-from src.storage.vector_store import VectorStoreFactory
-
-store = VectorStoreFactory.create_vector_store(
-    store_type="chroma",
-    config={
-        "persist_directory": "./chroma_db",
-        "collection_name": "confluence_docs"
-    }
-)
 ```
 
 ---

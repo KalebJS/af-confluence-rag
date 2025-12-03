@@ -30,7 +30,7 @@ import structlog
 from src.ingestion.confluence_client import ConfluenceClient
 from src.processing.embedder import EmbeddingGenerator
 from src.query.query_processor import QueryProcessor
-from src.storage.vector_store import VectorStoreFactory
+from src.storage.vector_store import ChromaStore
 from src.utils.config_loader import ConfigLoader
 
 log = structlog.stdlib.get_logger()
@@ -138,8 +138,9 @@ class HealthChecker:
             config_loader = ConfigLoader()
             config = config_loader.load_config(self.config_path)
 
-            vector_store = VectorStoreFactory.create_vector_store(
-                config.vector_store.type, config.vector_store.config
+            vector_store = ChromaStore(
+                persist_directory=config.vector_store.config["persist_directory"],
+                collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
             )
 
             # Try a simple search to verify functionality
@@ -225,8 +226,9 @@ class HealthChecker:
 
             embedder = EmbeddingGenerator(model_name=config.processing.embedding_model)
 
-            vector_store = VectorStoreFactory.create_vector_store(
-                config.vector_store.type, config.vector_store.config
+            vector_store = ChromaStore(
+                persist_directory=config.vector_store.config["persist_directory"],
+                collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
             )
 
             query_processor = QueryProcessor(

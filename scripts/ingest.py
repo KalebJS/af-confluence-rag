@@ -14,7 +14,7 @@ from src.ingestion.confluence_client import ConfluenceClient
 from src.ingestion.ingestion_service import IngestionService
 from src.processing.chunker import DocumentChunker
 from src.processing.embedder import EmbeddingGenerator
-from src.storage.vector_store import VectorStoreFactory
+from src.storage.vector_store import ChromaStore
 from src.utils.config_loader import ConfigLoader, ConfigurationError
 from src.utils.logging_config import configure_logging
 
@@ -171,9 +171,9 @@ def create_ingestion_service(config_path: str | None) -> tuple[IngestionService,
             model_name=config.processing.embedding_model,
         )
 
-        vector_store = VectorStoreFactory.create_vector_store(
-            store_type=config.vector_store.type,
-            config=config.vector_store.config,
+        vector_store = ChromaStore(
+            persist_directory=config.vector_store.config["persist_directory"],
+            collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
         )
 
         # Create ingestion service

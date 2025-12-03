@@ -23,7 +23,7 @@ from src.ingestion.confluence_client import ConfluenceClient
 from src.processing.chunker import DocumentChunker
 from src.processing.embedder import EmbeddingGenerator
 from src.processing.metadata_enricher import MetadataEnricher
-from src.storage.vector_store import VectorStoreFactory
+from src.storage.vector_store import ChromaStore
 from src.sync.change_detector import ChangeDetector
 from src.sync.sync_coordinator import SyncCoordinator
 from src.sync.timestamp_tracker import TimestampTracker
@@ -72,8 +72,9 @@ def perform_sync(config_path: str | None = None, full_sync: bool = False) -> dic
 
         metadata_enricher = MetadataEnricher()
 
-        vector_store = VectorStoreFactory.create_vector_store(
-            config.vector_store.type, config.vector_store.config
+        vector_store = ChromaStore(
+            persist_directory=config.vector_store.config["persist_directory"],
+            collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
         )
 
         timestamp_tracker = TimestampTracker(vector_store=vector_store)
