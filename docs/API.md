@@ -4,16 +4,18 @@ This document provides detailed API reference for all public classes and methods
 
 ## Table of Contents
 
+- [Provider Module](#provider-module)
+  - [get_embeddings](#get_embeddings)
+  - [get_vector_store](#get_vector_store)
 - [Ingestion Components](#ingestion-components)
   - [ConfluenceClient](#confluenceclient)
   - [IngestionService](#ingestionservice)
 - [Processing Components](#processing-components)
   - [DocumentChunker](#documentchunker)
-  - [EmbeddingGenerator](#embeddinggenerator)
   - [MetadataEnricher](#metadataenricher)
-- [Storage Components](#storage-components)
-  - [VectorStoreInterface](#vectorstoreinterface)
-  - [ChromaStore](#chromastore)
+- [LangChain Interfaces](#langchain-interfaces)
+  - [Embeddings Interface](#embeddings-interface)
+  - [VectorStore Interface](#vectorstore-interface)
 - [Synchronization Components](#synchronization-components)
   - [SyncCoordinator](#synccoordinator)
   - [ChangeDetector](#changedetector)
@@ -29,6 +31,150 @@ This document provides detailed API reference for all public classes and methods
 - [Utilities](#utilities)
   - [ConfigLoader](#configloader)
   - [Retry Decorator](#retry-decorator)
+
+---
+
+## Provider Module
+
+The provider module (`src/providers.py`) is the centralized location for configuring embeddings and vector store implementations. This is the ONLY file you need to modify to swap providers system-wide.
+
+### get_embeddings
+
+Factory function that returns an Embeddings instance.
+
+**Location:** `src/providers.py`
+
+#### Signature
+
+```python
+def get_embeddings(model_name: str) -> Embeddings
+```
+
+**Parameters:**
+- `model_name` (str): Name of the embedding model (e.g., "all-MiniLM-L6-v2")
+
+**Returns:**
+- `Embeddings`: LangChain Embeddings instance
+
+**Raises:**
+- `ValueError`: If model_name is empty or invalid
+- `RuntimeError`: If the embeddings provider cannot be initialized
+
+**Default Implementation:**
+```python
+from langchain_huggingface import HuggingFaceEmbeddings
+return HuggingFaceEmbeddings(model_name=model_name)
+```
+
+**Example Usage:**
+```python
+from src.providers import get_embeddings
+
+# Get default HuggingFace embeddings
+embeddings = get_embeddings("all-MiniLM-L6-v2")
+
+# Generate embedding for a query
+query_embedding = embeddings.embed_query("How do I configure authentication?")
+
+# Generate embeddings for multiple documents
+doc_embeddings = embeddings.embed_documents(["Doc 1", "Doc 2", "Doc 3"])
+```
+
+**Swapping Providers:**
+
+To use OpenAI embeddings instead, modify the function in `src/providers.py`:
+
+```python
+def get_embeddings(model_name: str) -> Embeddings:
+    from langchain_openai import OpenAIEmbeddings
+    return OpenAIEmbeddings(model=model_name)
+```
+
+---
+
+### get_vector_store
+
+Factory function that returns a VectorStore instance.
+
+**Location:** `src/providers.py`
+
+#### Signature
+
+```python
+def get_vector_store(
+    embeddings: Embeddings,
+    collection_name: str,
+    persist_directory: str
+) -> VectorStore
+```
+
+**Parameters:**
+- `embeddings` (Embeddings): Embeddings instance to use for vectorization
+- `collection_name` (str): Name of the collection/index
+- `persist_directory` (str): Directory for persistence (if supported by the provider)
+
+**Returns:**
+- `VectorStore`: LangChain VectorStore instance
+
+**Raises:**
+- `ValueError`: If collection_name or persist_directory is empty
+- `RuntimeError`: If the vector store cannot be initialized
+
+**Default Implementation:**
+```python
+from langchain_chroma import Chroma
+return Chroma(
+    collection_name=collection_name,
+    embedding_function=embeddings,
+    persist_directory=persist_directory
+)
+```
+
+**Example Usage:**
+```python
+from src.providers import get_embeddings, get_vector_store
+
+# Get embeddings and vector store
+embeddings = get_embeddings("all-MiniLM-L6-v2")
+vector_store = get_vector_store(
+    embeddings=embeddings,
+    collection_name="confluence_docs",
+    persist_directory="./chroma_db"
+)
+
+# Add documents
+from langchain_core.documents import Document
+docs = [
+    Document(page_content="Content 1", metadata={"page_id": "123"}),
+    Document(page_content="Content 2", metadata={"page_id": "456"})
+]
+vector_store.add_documents(docs)
+
+# Search
+results = vector_store.similarity_search_with_score("my query", k=5)
+for doc, score in results:
+    print(f"Score: {score:.3f} - {doc.page_content[:100]}")
+```
+
+**Swapping Providers:**
+
+To use FAISS instead, modify the function in `src/providers.py`:
+
+```python
+def get_vector_store(
+    embeddings: Embeddings,
+    collection_name: str,
+    persist_directory: str
+) -> VectorStore:
+    from langchain_community.vectorstores import FAISS
+    import os
+    
+    index_path = os.path.join(persist_directory, collection_name)
+    if os.path.exists(index_path):
+        return FAISS.load_local(index_path, embeddings)
+    else:
+        return FAISS.from_texts([""], embeddings)
+```
 
 ---
 
@@ -128,19 +274,45 @@ Orchestrates the complete ingestion pipeline from Confluence extraction to vecto
 #### Constructor
 
 ```python
-IngestionService(config: AppConfig)
+IngestionService(
+    config: AppConfig,
+    embeddings: Embeddings | None = None,
+    vector_store: VectorStore | None = None
+)
 ```
 
 **Parameters:**
 - `config` (AppConfig): Application configuration object
+- `embeddings` (Embeddings | None): Optional custom embeddings implementation. If None, uses provider module.
+- `vector_store` (VectorStore | None): Optional custom vector store implementation. If None, uses provider module.
 
-**Example:**
+**Example (using defaults):**
 ```python
 from src.ingestion.ingestion_service import IngestionService
 from src.utils.config_loader import ConfigLoader
 
 config = ConfigLoader().load_config()
 service = IngestionService(config)
+```
+
+**Example (with custom implementations):**
+```python
+from src.ingestion.ingestion_service import IngestionService
+from src.providers import get_embeddings, get_vector_store
+from src.utils.config_loader import ConfigLoader
+
+config = ConfigLoader().load_config()
+
+# Get custom implementations
+embeddings = get_embeddings("all-MiniLM-L6-v2")
+vector_store = get_vector_store(
+    embeddings=embeddings,
+    collection_name=config.vector_store.collection_name,
+    persist_directory=config.vector_store.persist_directory
+)
+
+# Inject into service
+service = IngestionService(config, embeddings=embeddings, vector_store=vector_store)
 ```
 
 #### Methods
@@ -239,78 +411,6 @@ for chunk in chunks:
 
 ---
 
-### EmbeddingGenerator
-
-Generates vector embeddings using sentence-transformers.
-
-**Location:** `src/processing/embedder.py`
-
-#### Constructor
-
-```python
-EmbeddingGenerator(model_name: str = "all-MiniLM-L6-v2")
-```
-
-**Parameters:**
-- `model_name` (str): Sentence transformer model name
-
-**Example:**
-```python
-from src.processing.embedder import EmbeddingGenerator
-
-embedder = EmbeddingGenerator(model_name="all-MiniLM-L6-v2")
-```
-
-#### Methods
-
-##### `generate_embedding(text: str) -> np.ndarray`
-
-Generates an embedding for a single text.
-
-**Parameters:**
-- `text` (str): Input text
-
-**Returns:**
-- `np.ndarray`: Embedding vector
-
-**Example:**
-```python
-embedding = embedder.generate_embedding("How do I configure authentication?")
-print(f"Embedding dimension: {len(embedding)}")
-```
-
-##### `generate_batch_embeddings(texts: list[str]) -> list[np.ndarray]`
-
-Generates embeddings for multiple texts efficiently.
-
-**Parameters:**
-- `texts` (list[str]): List of input texts
-
-**Returns:**
-- `list[np.ndarray]`: List of embedding vectors
-
-**Example:**
-```python
-texts = ["Query 1", "Query 2", "Query 3"]
-embeddings = embedder.generate_batch_embeddings(texts)
-print(f"Generated {len(embeddings)} embeddings")
-```
-
-##### `get_embedding_dimension() -> int`
-
-Returns the dimensionality of the embedding model.
-
-**Returns:**
-- `int`: Embedding dimension
-
-**Example:**
-```python
-dim = embedder.get_embedding_dimension()
-print(f"Model produces {dim}-dimensional embeddings")
-```
-
----
-
 ### MetadataEnricher
 
 Enriches document chunks with contextual metadata.
@@ -342,96 +442,165 @@ print(f"Metadata: {enriched_chunk.metadata}")
 
 ---
 
-## Storage Components
+## LangChain Interfaces
 
-### VectorStoreInterface
+The system uses LangChain's standard interfaces for embeddings and vector stores. These are abstract base classes that define the contract for all implementations.
 
-Abstract base class defining the interface for vector database operations.
+### Embeddings Interface
 
-**Location:** `src/storage/vector_store.py`
+**Interface:** `langchain_core.embeddings.Embeddings`
 
-#### Methods
+The Embeddings interface defines methods for generating vector embeddings from text.
 
-##### `add_documents(chunks: list[DocumentChunk], embeddings: list[np.ndarray]) -> None`
+#### Key Methods
 
-Adds documents with embeddings to the vector store.
+##### `embed_query(text: str) -> list[float]`
 
-**Parameters:**
-- `chunks` (list[DocumentChunk]): Document chunks
-- `embeddings` (list[np.ndarray]): Corresponding embeddings
-
-##### `search(query_embedding: np.ndarray, top_k: int) -> list[SearchResult]`
-
-Searches for similar documents.
+Generates an embedding for a single query text.
 
 **Parameters:**
-- `query_embedding` (np.ndarray): Query embedding vector
-- `top_k` (int): Number of results to return
+- `text` (str): Input query text
 
 **Returns:**
-- `list[SearchResult]`: Search results ranked by similarity
+- `list[float]`: Embedding vector
 
-##### `delete_by_page_id(page_id: str) -> None`
+**Example:**
+```python
+from src.providers import get_embeddings
 
-Deletes all chunks associated with a page.
+embeddings = get_embeddings("all-MiniLM-L6-v2")
+query_embedding = embeddings.embed_query("How do I configure authentication?")
+print(f"Embedding dimension: {len(query_embedding)}")
+```
+
+##### `embed_documents(texts: list[str]) -> list[list[float]]`
+
+Generates embeddings for multiple documents efficiently.
 
 **Parameters:**
-- `page_id` (str): Page ID to delete
-
-##### `get_document_metadata(page_id: str) -> dict | None`
-
-Retrieves metadata for a document.
-
-**Parameters:**
-- `page_id` (str): Page ID
+- `texts` (list[str]): List of input texts
 
 **Returns:**
-- `dict | None`: Document metadata if found
+- `list[list[float]]`: List of embedding vectors
+
+**Example:**
+```python
+texts = ["Document 1", "Document 2", "Document 3"]
+doc_embeddings = embeddings.embed_documents(texts)
+print(f"Generated {len(doc_embeddings)} embeddings")
+```
+
+#### Available Implementations
+
+- **HuggingFaceEmbeddings** (default): Local, wraps sentence-transformers
+- **OpenAIEmbeddings**: OpenAI's embedding models
+- **CohereEmbeddings**: Cohere's embedding models
+- **AzureOpenAIEmbeddings**: Azure OpenAI embeddings
+- And 20+ more via LangChain ecosystem
 
 ---
 
-### ChromaStore
+### VectorStore Interface
 
-Chroma implementation of VectorStoreInterface.
+**Interface:** `langchain_core.vectorstores.VectorStore`
 
-**Location:** `src/storage/vector_store.py`
+The VectorStore interface defines methods for storing and searching vector embeddings.
 
-#### Constructor
+#### Key Methods
 
-```python
-ChromaStore(persist_directory: str, collection_name: str = "confluence_docs")
-```
+##### `add_documents(documents: list[Document], **kwargs) -> list[str]`
+
+Adds documents to the vector store with automatic embedding.
 
 **Parameters:**
-- `persist_directory` (str): Directory for persistent storage
-- `collection_name` (str): Name of the Chroma collection
-
-**Example:**
-```python
-from src.storage.vector_store import ChromaStore
-
-store = ChromaStore(
-    persist_directory="./chroma_db",
-    collection_name="confluence_docs"
-)
-```
-
-#### Methods
-
-All methods from VectorStoreInterface, plus:
-
-##### `get_collection_stats() -> dict`
-
-Returns statistics about the collection.
+- `documents` (list[Document]): LangChain Document objects with content and metadata
 
 **Returns:**
-- `dict`: Statistics including document count
+- `list[str]`: List of document IDs
 
 **Example:**
 ```python
-stats = store.get_collection_stats()
-print(f"Total documents: {stats['count']}")
+from src.providers import get_embeddings, get_vector_store
+from langchain_core.documents import Document
+
+embeddings = get_embeddings("all-MiniLM-L6-v2")
+vector_store = get_vector_store(embeddings, "confluence_docs", "./chroma_db")
+
+docs = [
+    Document(page_content="Content 1", metadata={"page_id": "123"}),
+    Document(page_content="Content 2", metadata={"page_id": "456"})
+]
+ids = vector_store.add_documents(docs)
+print(f"Added documents with IDs: {ids}")
 ```
+
+##### `similarity_search(query: str, k: int = 4, **kwargs) -> list[Document]`
+
+Searches for similar documents by query string.
+
+**Parameters:**
+- `query` (str): Query text
+- `k` (int): Number of results to return
+
+**Returns:**
+- `list[Document]`: List of similar documents
+
+**Example:**
+```python
+results = vector_store.similarity_search("How do I deploy?", k=5)
+for doc in results:
+    print(f"Content: {doc.page_content[:100]}")
+    print(f"Metadata: {doc.metadata}")
+```
+
+##### `similarity_search_with_score(query: str, k: int = 4, **kwargs) -> list[tuple[Document, float]]`
+
+Searches for similar documents with relevance scores.
+
+**Parameters:**
+- `query` (str): Query text
+- `k` (int): Number of results to return
+
+**Returns:**
+- `list[tuple[Document, float]]`: List of (document, score) tuples
+
+**Example:**
+```python
+results = vector_store.similarity_search_with_score("authentication setup", k=5)
+for doc, score in results:
+    print(f"Score: {score:.3f}")
+    print(f"Title: {doc.metadata.get('page_title', 'Unknown')}")
+    print(f"Content: {doc.page_content[:100]}")
+```
+
+##### `delete(ids: list[str], **kwargs) -> bool | None`
+
+Deletes documents by their IDs.
+
+**Parameters:**
+- `ids` (list[str]): List of document IDs to delete
+
+**Returns:**
+- `bool | None`: True if successful, None if not supported
+
+**Example:**
+```python
+# Delete specific documents
+vector_store.delete(["doc_id_1", "doc_id_2"])
+
+# Delete by metadata filter (if supported)
+# Note: Not all vector stores support metadata-based deletion
+```
+
+#### Available Implementations
+
+- **Chroma** (default): Local vector database with persistence
+- **FAISS**: Fast similarity search, local or distributed
+- **Pinecone**: Cloud-native vector database
+- **Qdrant**: Open-source vector search engine
+- **Weaviate**: Open-source vector database
+- **Snowflake**: Enterprise data warehouse with vector support
+- And 50+ more via LangChain ecosystem
 
 ---
 
@@ -574,10 +743,16 @@ Processes search queries and retrieves relevant documents.
 
 ```python
 QueryProcessor(
-    embedder: EmbeddingGenerator,
-    vector_store: VectorStoreInterface
+    embeddings: Embeddings | None = None,
+    vector_store: VectorStore | None = None,
+    config: AppConfig | None = None
 )
 ```
+
+**Parameters:**
+- `embeddings` (Embeddings | None): Optional embeddings implementation. If None, uses provider module.
+- `vector_store` (VectorStore | None): Optional vector store implementation. If None, uses provider module.
+- `config` (AppConfig | None): Optional configuration. Required if embeddings or vector_store are None.
 
 #### Methods
 
@@ -592,16 +767,30 @@ Processes a natural language query and returns results.
 **Returns:**
 - `list[SearchResult]`: Ranked search results
 
-**Example:**
+**Example (using defaults):**
 ```python
 from src.query.query_processor import QueryProcessor
+from src.utils.config_loader import ConfigLoader
 
-processor = QueryProcessor(embedder, store)
+config = ConfigLoader().load_config()
+processor = QueryProcessor(config=config)
 results = processor.process_query("How do I configure authentication?", top_k=5)
 
 for result in results:
     print(f"{result.page_title}: {result.similarity_score:.2%}")
     print(f"  {result.content[:100]}...")
+```
+
+**Example (with custom implementations):**
+```python
+from src.query.query_processor import QueryProcessor
+from src.providers import get_embeddings, get_vector_store
+
+embeddings = get_embeddings("all-MiniLM-L6-v2")
+vector_store = get_vector_store(embeddings, "confluence_docs", "./chroma_db")
+
+processor = QueryProcessor(embeddings=embeddings, vector_store=vector_store)
+results = processor.process_query("deployment guide", top_k=10)
 ```
 
 ---

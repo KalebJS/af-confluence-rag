@@ -119,38 +119,44 @@ def test_property_33_graceful_error_recovery(
     # Mock embedder
     embedder.generate_batch_embeddings.return_value = [[0.1] * 384]
 
-    # Mock vector store
+    # Mock vector store (old interface - not used anymore)
     vector_store.add_documents.return_value = None
     vector_store.get_document_metadata.return_value = None
 
-    # Create ingestion service
-    with patch("src.ingestion.ingestion_service.SyncCoordinator"):
-        service = IngestionService(
-            confluence_client=confluence_client,
-            chunker=chunker,
-            embedder=embedder,
-            vector_store=vector_store,
-        )
+    # Create ingestion service with mocked LangChain abstractions
+    mock_embeddings = Mock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 384]
+    
+    mock_vector_store_langchain = Mock()
+    mock_vector_store_langchain.add_documents.return_value = ["id1"]
+    mock_vector_store_langchain.similarity_search.return_value = []
+    
+    service = IngestionService(
+        confluence_client=confluence_client,
+        chunker=chunker,
+        embeddings=mock_embeddings,
+        vector_store=mock_vector_store_langchain,
+    )
 
-        # Perform full ingestion (not incremental to test batch processing)
-        result = service.ingest_space(space_key, incremental=False)
+    # Perform full ingestion (not incremental to test batch processing)
+    result = service.ingest_space(space_key, incremental=False)
 
-        # Verify that processing continued despite error
-        # At least one page should have been processed successfully
-        assert result["pages_processed"] >= 1, (
-            f"Expected at least 1 page processed, got {result['pages_processed']}"
-        )
+    # Verify that processing continued despite error
+    # At least one page should have been processed successfully
+    assert result["pages_processed"] >= 1, (
+        f"Expected at least 1 page processed, got {result['pages_processed']}"
+    )
 
-        # Verify that errors were logged
-        assert len(result["errors"]) >= 1, (
-            f"Expected at least 1 error logged, got {len(result['errors'])}"
-        )
+    # Verify that errors were logged
+    assert len(result["errors"]) >= 1, (
+        f"Expected at least 1 error logged, got {len(result['errors'])}"
+    )
 
-        # Verify that the result indicates partial success
-        # (success=False because there were errors, but pages_processed > 0)
-        assert result["pages_processed"] > 0 or len(result["errors"]) > 0, (
-            "Expected either pages processed or errors logged"
-        )
+    # Verify that the result indicates partial success
+    # (success=False because there were errors, but pages_processed > 0)
+    assert result["pages_processed"] > 0 or len(result["errors"]) > 0, (
+        "Expected either pages processed or errors logged"
+    )
 
 
 @given(
@@ -210,45 +216,51 @@ def test_property_35_completion_logging(
     # Mock embedder
     embedder.generate_batch_embeddings.return_value = [[0.1] * 384]
 
-    # Mock vector store
+    # Mock vector store (old interface - not used anymore)
     vector_store.add_documents.return_value = None
     vector_store.get_document_metadata.return_value = None
 
-    # Create ingestion service
-    with patch("src.ingestion.ingestion_service.SyncCoordinator"):
-        service = IngestionService(
-            confluence_client=confluence_client,
-            chunker=chunker,
-            embedder=embedder,
-            vector_store=vector_store,
-        )
+    # Create ingestion service with mocked LangChain abstractions
+    mock_embeddings = Mock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 384]
+    
+    mock_vector_store_langchain = Mock()
+    mock_vector_store_langchain.add_documents.return_value = ["id1"]
+    mock_vector_store_langchain.similarity_search.return_value = []
+    
+    service = IngestionService(
+        confluence_client=confluence_client,
+        chunker=chunker,
+        embeddings=mock_embeddings,
+        vector_store=mock_vector_store_langchain,
+    )
 
-        # Perform full ingestion
-        result = service.ingest_space(space_key, incremental=False)
+    # Perform full ingestion
+    result = service.ingest_space(space_key, incremental=False)
 
-        # Verify that result contains required statistics
-        assert "pages_processed" in result, "Result missing 'pages_processed'"
-        assert "duration_seconds" in result, "Result missing 'duration_seconds'"
-        assert "chunks_created" in result, "Result missing 'chunks_created'"
-        assert "success" in result, "Result missing 'success'"
+    # Verify that result contains required statistics
+    assert "pages_processed" in result, "Result missing 'pages_processed'"
+    assert "duration_seconds" in result, "Result missing 'duration_seconds'"
+    assert "chunks_created" in result, "Result missing 'chunks_created'"
+    assert "success" in result, "Result missing 'success'"
 
-        # Verify that pages_processed matches expected count
-        assert result["pages_processed"] == page_count, (
-            f"Expected {page_count} pages processed, got {result['pages_processed']}"
-        )
+    # Verify that pages_processed matches expected count
+    assert result["pages_processed"] == page_count, (
+        f"Expected {page_count} pages processed, got {result['pages_processed']}"
+    )
 
-        # Verify that duration is positive
-        assert result["duration_seconds"] > 0, (
-            f"Expected positive duration, got {result['duration_seconds']}"
-        )
+    # Verify that duration is positive
+    assert result["duration_seconds"] > 0, (
+        f"Expected positive duration, got {result['duration_seconds']}"
+    )
 
-        # Verify that chunks were created
-        assert result["chunks_created"] == page_count, (
-            f"Expected {page_count} chunks created, got {result['chunks_created']}"
-        )
+    # Verify that chunks were created
+    assert result["chunks_created"] == page_count, (
+        f"Expected {page_count} chunks created, got {result['chunks_created']}"
+    )
 
-        # Verify success flag
-        assert result["success"] is True, f"Expected success=True, got {result['success']}"
+    # Verify success flag
+    assert result["success"] is True, f"Expected success=True, got {result['success']}"
 
 
 @given(space_key=space_key_strategy)
@@ -272,29 +284,35 @@ def test_database_unavailability_handling(
     # Mock vector store to raise error on health check
     vector_store.get_document_metadata.side_effect = RuntimeError("Connection refused")
 
-    # Create ingestion service
-    with patch("src.ingestion.ingestion_service.SyncCoordinator"):
-        service = IngestionService(
-            confluence_client=confluence_client,
-            chunker=chunker,
-            embedder=embedder,
-            vector_store=vector_store,
-        )
+    # Create ingestion service with mocked LangChain abstractions
+    mock_embeddings = Mock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 384]
+    
+    mock_vector_store_langchain = Mock()
+    # Make similarity_search raise error for health check
+    mock_vector_store_langchain.similarity_search.side_effect = RuntimeError("Connection refused")
+    
+    service = IngestionService(
+        confluence_client=confluence_client,
+        chunker=chunker,
+        embeddings=mock_embeddings,
+        vector_store=mock_vector_store_langchain,
+    )
 
-        # Attempt ingestion
-        result = service.ingest_space(space_key, incremental=False)
+    # Attempt ingestion
+    result = service.ingest_space(space_key, incremental=False)
 
-        # Verify that the operation failed gracefully
-        assert result["success"] is False, f"Expected success=False, got {result['success']}"
+    # Verify that the operation failed gracefully
+    assert result["success"] is False, f"Expected success=False, got {result['success']}"
 
-        # Verify that error message mentions database unavailability
-        assert len(result["errors"]) > 0, "Expected error messages"
-        error_msg = result["errors"][0].lower()
-        assert "database" in error_msg or "unavailable" in error_msg, (
-            f"Expected error message about database unavailability, got: {error_msg}"
-        )
+    # Verify that error message mentions database unavailability
+    assert len(result["errors"]) > 0, "Expected error messages"
+    error_msg = result["errors"][0].lower()
+    assert "database" in error_msg or "unavailable" in error_msg, (
+        f"Expected error message about database unavailability, got: {error_msg}"
+    )
 
-        # Verify that no pages were processed
-        assert result["pages_processed"] == 0, (
-            f"Expected 0 pages processed, got {result['pages_processed']}"
-        )
+    # Verify that no pages were processed
+    assert result["pages_processed"] == 0, (
+        f"Expected 0 pages processed, got {result['pages_processed']}"
+    )

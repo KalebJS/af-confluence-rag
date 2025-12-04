@@ -21,9 +21,8 @@ import structlog
 
 from src.ingestion.confluence_client import ConfluenceClient
 from src.processing.chunker import DocumentChunker
-from src.processing.embedder import EmbeddingGenerator
 from src.processing.metadata_enricher import MetadataEnricher
-from src.storage.vector_store import ChromaStore
+from src.providers import get_embeddings, get_vector_store
 from src.sync.change_detector import ChangeDetector
 from src.sync.sync_coordinator import SyncCoordinator
 from src.sync.timestamp_tracker import TimestampTracker
@@ -68,14 +67,16 @@ def perform_sync(config_path: str | None = None, full_sync: bool = False) -> dic
             chunk_overlap=config.processing.chunk_overlap,
         )
 
-        embedder = EmbeddingGenerator(model_name=config.processing.embedding_model)
+        # Get embeddings and vector store from provider module
+        embeddings = get_embeddings(model_name=config.processing.embedding_model)
+        
+        vector_store = get_vector_store(
+            embeddings=embeddings,
+            collection_name=config.vector_store.collection_name,
+            persist_directory=config.vector_store.persist_directory,
+        )
 
         metadata_enricher = MetadataEnricher()
-
-        vector_store = ChromaStore(
-            persist_directory=config.vector_store.config["persist_directory"],
-            collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
-        )
 
         timestamp_tracker = TimestampTracker(vector_store=vector_store)
 
@@ -83,11 +84,11 @@ def perform_sync(config_path: str | None = None, full_sync: bool = False) -> dic
             confluence_client=confluence_client, timestamp_tracker=timestamp_tracker
         )
 
-        # Create sync coordinator
+        # Create sync coordinator with LangChain abstractions
         sync_coordinator = SyncCoordinator(
             confluence_client=confluence_client,
             chunker=chunker,
-            embedder=embedder,
+            embeddings=embeddings,
             metadata_enricher=metadata_enricher,
             vector_store=vector_store,
             change_detector=change_detector,

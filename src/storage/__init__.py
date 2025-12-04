@@ -1,5 +1,7 @@
-"""Vector storage components for the Confluence RAG system."""
+"""Vector storage components for the Confluence RAG system.
 
-from src.storage.vector_store import ChromaStore, VectorStoreInterface
+Note: Vector store functionality is now provided through LangChain's VectorStore
+interface. See src/providers.py for the default Chroma implementation.
+"""
 
-__all__ = ["VectorStoreInterface", "ChromaStore"]
+__all__ = []

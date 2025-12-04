@@ -12,10 +12,8 @@ processing:
   embedding_model: "all-MiniLM-L6-v2"
 
 vector_store:
-  type: "chroma"
-  config:
-    persist_directory: "./chroma_db"
-    collection_name: "confluence_docs"
+  collection_name: "confluence_docs"
+  persist_directory: "./chroma_db"
 
 logging:
   log_level: "INFO"

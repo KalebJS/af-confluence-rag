@@ -9,8 +9,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class VectorStoreConfig(BaseModel):
     """Configuration for vector store."""
 
-    type: str = Field(default=..., description="Vector store type (chroma, faiss, qdrant, etc.)")
-    config: dict[str, Any] = Field(default_factory=dict, description="Store-specific configuration")
+    collection_name: str = Field(
+        default="confluence_docs", description="Name of the vector store collection"
+    )
+    persist_directory: str = Field(
+        default="./chroma_db", description="Directory for vector store persistence"
+    )
 
 
 class ProcessingConfig(BaseModel):

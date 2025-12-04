@@ -12,9 +12,9 @@ import structlog
 
 from src.ingestion.confluence_client import ConfluenceClient
 from src.ingestion.ingestion_service import IngestionService
+from src.models.config import ProcessingConfig, VectorStoreConfig
 from src.processing.chunker import DocumentChunker
-from src.processing.embedder import EmbeddingGenerator
-from src.storage.vector_store import ChromaStore
+from src.providers import get_embeddings, get_vector_store
 from src.utils.config_loader import ConfigLoader, ConfigurationError
 from src.utils.logging_config import configure_logging
 
@@ -167,20 +167,20 @@ def create_ingestion_service(config_path: str | None) -> tuple[IngestionService,
             chunk_overlap=config.processing.chunk_overlap,
         )
 
-        embedder = EmbeddingGenerator(
-            model_name=config.processing.embedding_model,
+        # Get embeddings and vector store from provider module
+        embeddings = get_embeddings(model_name=config.processing.embedding_model)
+        
+        vector_store = get_vector_store(
+            embeddings=embeddings,
+            collection_name=config.vector_store.collection_name,
+            persist_directory=config.vector_store.persist_directory,
         )
 
-        vector_store = ChromaStore(
-            persist_directory=config.vector_store.config["persist_directory"],
-            collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
-        )
-
-        # Create ingestion service
+        # Create ingestion service with LangChain abstractions
         ingestion_service = IngestionService(
             confluence_client=confluence_client,
             chunker=chunker,
-            embedder=embedder,
+            embeddings=embeddings,
             vector_store=vector_store,
         )
 

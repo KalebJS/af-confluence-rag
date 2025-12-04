@@ -220,6 +220,7 @@ def test_result_formatter_creates_excerpts(content_length: int):
         f"Content excerpt should not exceed 303 chars, got {len(card['content'])}"
     )
 
-    # If original content was longer than 300, excerpt should be truncated
+    # If original content was longer than 300, excerpt should be truncated with ellipsis
     if content_length > 300:
-        assert len(card["content"]) < content_length, "Long content should be truncated"
+        assert card["content"].endswith("..."), "Long content should be truncated with ellipsis"
+        assert len(card["content"]) <= 303, "Truncated content should not exceed 303 chars"

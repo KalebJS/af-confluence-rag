@@ -10,10 +10,9 @@ import streamlit as st
 import structlog
 
 from src.models.config import AppConfig
-from src.processing.embedder import EmbeddingGenerator
+from src.providers import get_embeddings, get_vector_store
 from src.query.query_processor import QueryProcessor
 from src.query.result_formatter import ResultFormatter
-from src.storage.vector_store import ChromaStore
 from src.utils.config_loader import ConfigLoader, ConfigurationError
 from src.utils.logging_config import configure_logging
 
@@ -47,22 +46,22 @@ def initialize_app() -> tuple[QueryProcessor, ResultFormatter, AppConfig]:
 
         log.info(
             "app_configuration_loaded",
-            vector_store_type=config.vector_store.type,
+            embedding_model=config.processing.embedding_model,
             log_level=config.logging.log_level,
         )
 
-        # Initialize embedding generator
-        embedder = EmbeddingGenerator(model_name=config.processing.embedding_model)
-
-        # Initialize vector store
-        vector_store = ChromaStore(
-            persist_directory=config.vector_store.config["persist_directory"],
-            collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
+        # Get embeddings and vector store from provider module
+        embeddings = get_embeddings(model_name=config.processing.embedding_model)
+        
+        vector_store = get_vector_store(
+            embeddings=embeddings,
+            collection_name=config.vector_store.collection_name,
+            persist_directory=config.vector_store.persist_directory,
         )
 
-        # Initialize query processor
+        # Initialize query processor with LangChain abstractions
         query_processor = QueryProcessor(
-            embedder=embedder,
+            embeddings=embeddings,
             vector_store=vector_store,
         )
 
@@ -214,8 +213,8 @@ def render_sidebar(config: AppConfig) -> None:
         st.markdown("**Embedding Model:**")
         st.code(config.processing.embedding_model)
 
-        st.markdown("**Vector Store:**")
-        st.code(config.vector_store.type)
+        st.markdown("**Collection:**")
+        st.code(config.vector_store.collection_name)
 
         st.divider()
 

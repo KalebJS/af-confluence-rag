@@ -21,9 +21,8 @@ import structlog
 from src.ingestion.confluence_client import ConfluenceClient
 from src.ingestion.ingestion_service import IngestionService
 from src.processing.chunker import DocumentChunker
-from src.processing.embedder import EmbeddingGenerator
 from src.processing.metadata_enricher import MetadataEnricher
-from src.storage.vector_store import ChromaStore
+from src.providers import get_embeddings, get_vector_store
 from src.utils.config_loader import ConfigLoader
 
 log = structlog.stdlib.get_logger()
@@ -107,10 +106,12 @@ def initialize_vector_store(config_path: str | None = None) -> bool:
         config_loader = ConfigLoader()
         config = config_loader.load_config(config_path)
 
-        # Create vector store instance
-        vector_store = ChromaStore(
-            persist_directory=config.vector_store.config["persist_directory"],
-            collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
+        # Create embeddings and vector store using provider module
+        embeddings = get_embeddings(config.processing.embedding_model)
+        vector_store = get_vector_store(
+            embeddings=embeddings,
+            collection_name=config.vector_store.collection_name,
+            persist_directory=config.vector_store.persist_directory,
         )
 
         log.info("Vector store initialized successfully")
@@ -198,21 +199,22 @@ def perform_test_ingestion(config_path: str | None = None) -> bool:
             chunk_overlap=config.processing.chunk_overlap,
         )
 
-        embedder = EmbeddingGenerator(model_name=config.processing.embedding_model)
-
         metadata_enricher = MetadataEnricher()
 
-        vector_store = ChromaStore(
-            persist_directory=config.vector_store.config["persist_directory"],
-            collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
+        # Create embeddings and vector store using provider module
+        embeddings = get_embeddings(config.processing.embedding_model)
+        vector_store = get_vector_store(
+            embeddings=embeddings,
+            collection_name=config.vector_store.collection_name,
+            persist_directory=config.vector_store.persist_directory,
         )
 
         # Create ingestion service
         ingestion_service = IngestionService(
             confluence_client=confluence_client,
             chunker=chunker,
-            embedder=embedder,
             metadata_enricher=metadata_enricher,
+            embeddings=embeddings,
             vector_store=vector_store,
         )
 

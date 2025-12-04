@@ -13,6 +13,8 @@ This system enables organizations to extract, vectorize, and query their Conflue
 
 ### High-Level Architecture
 
+The system uses **LangChain's standard abstractions** for embeddings and vector stores, making it easy to swap implementations without modifying core code.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Confluence RAG System                    │
@@ -32,27 +34,48 @@ This system enables organizations to extract, vectorize, and query their Conflue
 │  │  │ Processor  │  │         │  │ Processor  │  │          │
 │  │  └─────┬──────┘  │         │  └─────┬──────┘  │          │
 │  │        │         │         │        │         │          │
-│  │  ┌─────▼──────┐  │         │  ┌─────▼──────┐  │          │
-│  │  │ Embedder   │  │         │  │ Result     │  │          │
-│  │  └─────┬──────┘  │         │  │ Formatter  │  │          │
-│  │        │         │         │  └─────┬──────┘  │          │
-│  └────────┼─────────┘         └────────┼─────────┘          │
+│  │  ┌─────▼──────────────┐    │  ┌─────▼──────┐  │          │
+│  │  │ Embeddings         │    │  │ Result     │  │          │
+│  │  │ (LangChain)        │    │  │ Formatter  │  │          │
+│  │  └─────┬──────────────┘    │  └─────┬──────┘  │          │
+│  └────────┼─────────────────┘ └────────┼─────────┘          │
 │           │                            │                    │
 │           └────────┬───────────────────┘                    │
 │                    │                                        │
+│           ┌────────▼─────────────────┐                      │
+│           │  VectorStore             │                      │
+│           │  (LangChain)             │                      │
+│           └────────┬─────────────────┘                      │
+│                    │                                        │
 │           ┌────────▼─────────┐                              │
-│           │  Vector Database │                              │
-│           │  (Chroma)        │                              │
+│           │  Chroma          │                              │
+│           │  (Default)       │                              │
 │           └──────────────────┘                              │
 │                                                               │
 ├─────────────────────────────────────────────────────────────┤
 │                    Shared Components                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Config       │  │ Logging      │  │ Utilities    │      │
-│  │ Manager      │  │ System       │  │              │      │
+│  │ Providers    │  │ Config       │  │ Logging      │      │
+│  │ Module       │  │ Manager      │  │ System       │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### LangChain Integration
+
+The system leverages LangChain's abstractions for maximum flexibility:
+
+- **Embeddings Interface**: Uses `langchain_core.embeddings.Embeddings` base class
+  - Default: `HuggingFaceEmbeddings` (wraps sentence-transformers, runs locally)
+  - Easily swap to OpenAI, Cohere, or any LangChain-compatible provider
+
+- **VectorStore Interface**: Uses `langchain_core.vectorstores.VectorStore` base class
+  - Default: `Chroma` (local vector database)
+  - Easily swap to FAISS, Pinecone, Qdrant, Snowflake, or any LangChain-compatible store
+
+- **Provider Module**: Centralized `src/providers.py` for swapping implementations
+  - Modify ONE file to change providers system-wide
+  - No changes needed to ingestion, query, or sync components
 
 ### Component Overview
 
@@ -60,22 +83,22 @@ This system enables organizations to extract, vectorize, and query their Conflue
 - Connects to Confluence API and authenticates
 - Retrieves pages from specified spaces with pagination handling
 - Processes and chunks documents using LangChain text splitters
-- Generates embeddings using sentence-transformers (all-MiniLM-L6-v2)
-- Stores vectors and metadata in Chroma database
+- Generates embeddings using LangChain's Embeddings interface (default: HuggingFaceEmbeddings)
+- Stores vectors and metadata using LangChain's VectorStore interface (default: Chroma)
 - Manages incremental updates and synchronization
 
 **Query Interface (Streamlit):**
 - Provides web-based search interface
 - Accepts natural language queries from users
-- Converts queries to embeddings using the same model as ingestion
-- Retrieves relevant documents from vector database
+- Converts queries to embeddings using LangChain's Embeddings interface
+- Retrieves relevant documents using LangChain's VectorStore interface
 - Displays formatted results with metadata and links
 
-**Vector Database (Chroma):**
-- Persists vector embeddings with metadata
-- Performs similarity search operations
-- Manages document identifiers and deduplication
-- Provides CRUD operations for vector management
+**Provider Module (`src/providers.py`):**
+- Centralized location for configuring embeddings and vector store implementations
+- Factory functions: `get_embeddings()` and `get_vector_store()`
+- Modify this ONE file to swap providers system-wide
+- Includes examples for common provider swaps (OpenAI, Snowflake, FAISS, etc.)
 
 **Shared Components:**
 - Configuration management for environment-specific settings
@@ -256,6 +279,195 @@ query:
 3. Create a new token with appropriate permissions
 4. Copy the token and save it securely
 
+## Swapping Providers
+
+One of the key benefits of using LangChain abstractions is the ability to easily swap embedding and vector store providers. All provider configuration is centralized in `src/providers.py`.
+
+### Changing Embedding Providers
+
+Edit the `get_embeddings()` function in `src/providers.py`:
+
+**Default (HuggingFace - Local, No API Keys):**
+```python
+def get_embeddings(model_name: str) -> Embeddings:
+    from langchain_huggingface import HuggingFaceEmbeddings
+    return HuggingFaceEmbeddings(model_name=model_name)
+```
+
+**Swap to OpenAI:**
+```python
+def get_embeddings(model_name: str) -> Embeddings:
+    from langchain_openai import OpenAIEmbeddings
+    return OpenAIEmbeddings(model=model_name)
+```
+
+**Swap to Cohere:**
+```python
+def get_embeddings(model_name: str) -> Embeddings:
+    from langchain_cohere import CohereEmbeddings
+    return CohereEmbeddings(model=model_name)
+```
+
+**Swap to Azure OpenAI:**
+```python
+def get_embeddings(model_name: str) -> Embeddings:
+    from langchain_openai import AzureOpenAIEmbeddings
+    return AzureOpenAIEmbeddings(
+        model=model_name,
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY")
+    )
+```
+
+### Changing Vector Store Providers
+
+Edit the `get_vector_store()` function in `src/providers.py`:
+
+**Default (Chroma - Local, No External Services):**
+```python
+def get_vector_store(
+    embeddings: Embeddings,
+    collection_name: str,
+    persist_directory: str
+) -> VectorStore:
+    from langchain_chroma import Chroma
+    return Chroma(
+        collection_name=collection_name,
+        embedding_function=embeddings,
+        persist_directory=persist_directory
+    )
+```
+
+**Swap to FAISS (Local, Fast):**
+```python
+def get_vector_store(
+    embeddings: Embeddings,
+    collection_name: str,
+    persist_directory: str
+) -> VectorStore:
+    from langchain_community.vectorstores import FAISS
+    import os
+    
+    index_path = os.path.join(persist_directory, collection_name)
+    
+    # Load existing index or create new one
+    if os.path.exists(index_path):
+        return FAISS.load_local(index_path, embeddings)
+    else:
+        # Create empty index (will be populated during ingestion)
+        return FAISS.from_texts([""], embeddings)
+```
+
+**Swap to Pinecone (Cloud, Scalable):**
+```python
+def get_vector_store(
+    embeddings: Embeddings,
+    collection_name: str,
+    persist_directory: str
+) -> VectorStore:
+    from langchain_pinecone import PineconeVectorStore
+    import os
+    
+    return PineconeVectorStore(
+        index_name=collection_name,
+        embedding=embeddings,
+        pinecone_api_key=os.getenv("PINECONE_API_KEY")
+    )
+```
+
+**Swap to Qdrant (Cloud or Self-Hosted):**
+```python
+def get_vector_store(
+    embeddings: Embeddings,
+    collection_name: str,
+    persist_directory: str
+) -> VectorStore:
+    from langchain_qdrant import QdrantVectorStore
+    from qdrant_client import QdrantClient
+    import os
+    
+    client = QdrantClient(
+        url=os.getenv("QDRANT_URL"),
+        api_key=os.getenv("QDRANT_API_KEY")
+    )
+    
+    return QdrantVectorStore(
+        client=client,
+        collection_name=collection_name,
+        embedding=embeddings
+    )
+```
+
+**Swap to Snowflake (Enterprise):**
+```python
+def get_vector_store(
+    embeddings: Embeddings,
+    collection_name: str,
+    persist_directory: str
+) -> VectorStore:
+    from langchain_snowflake import SnowflakeVectorStore
+    import os
+    
+    return SnowflakeVectorStore(
+        embedding=embeddings,
+        collection_name=collection_name,
+        connection_params={
+            "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+            "user": os.getenv("SNOWFLAKE_USER"),
+            "password": os.getenv("SNOWFLAKE_PASSWORD"),
+            "database": os.getenv("SNOWFLAKE_DATABASE"),
+            "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+            "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE")
+        }
+    )
+```
+
+### Installing Additional Dependencies
+
+When swapping providers, you may need to install additional packages:
+
+```bash
+# For OpenAI
+uv add langchain-openai
+
+# For Cohere
+uv add langchain-cohere
+
+# For Pinecone
+uv add langchain-pinecone
+
+# For Qdrant
+uv add langchain-qdrant
+
+# For FAISS
+uv add faiss-cpu  # or faiss-gpu for GPU support
+```
+
+### Advanced: Custom Implementations
+
+You can also provide custom implementations via dependency injection:
+
+```python
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
+
+class MyCustomEmbeddings(Embeddings):
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        # Your custom implementation
+        pass
+    
+    def embed_query(self, text: str) -> list[float]:
+        # Your custom implementation
+        pass
+
+# Use via dependency injection
+from src.ingestion.ingestion_service import IngestionService
+
+embeddings = MyCustomEmbeddings()
+vector_store = get_vector_store(embeddings, "my_collection", "./data")
+service = IngestionService(config, embeddings=embeddings, vector_store=vector_store)
+```
+
 ## Usage
 
 ### Initial Data Ingestion
@@ -409,15 +621,15 @@ Use the query processor directly in your code:
 
 ```python
 from src.query.query_processor import QueryProcessor
-from src.processing.embedder import EmbeddingGenerator
-from src.storage.vector_store import ChromaStore
+from src.providers import get_embeddings, get_vector_store
 from src.utils.config_loader import ConfigLoader
 
 config = ConfigLoader().load_config()
-embedder = EmbeddingGenerator(config.processing.embedding_model)
-vector_store = ChromaStore(
-    persist_directory=config.vector_store.config["persist_directory"],
-    collection_name=config.vector_store.config["collection_name"]
+embeddings = get_embeddings(config.processing.embedding_model)
+vector_store = get_vector_store(
+    embeddings=embeddings,
+    persist_directory=config.vector_store.persist_directory,
+    collection_name=config.vector_store.collection_name
 )
 
 processor = QueryProcessor(embedder, vector_store)
@@ -502,15 +714,13 @@ uv run mypy src
 ```
 confluence-rag-system/
 ├── src/                        # Source code
+│   ├── providers.py           # ⭐ Provider configuration (THE file to modify)
 │   ├── ingestion/             # Ingestion service components
 │   │   ├── confluence_client.py   # Confluence API wrapper
 │   │   └── ingestion_service.py   # Orchestrates ingestion pipeline
 │   ├── processing/            # Document processing
 │   │   ├── chunker.py            # Text chunking with LangChain
-│   │   ├── embedder.py           # Embedding generation
 │   │   └── metadata_enricher.py  # Metadata management
-│   ├── storage/               # Vector database
-│   │   └── vector_store.py       # Chroma vector store implementation
 │   ├── sync/                  # Synchronization
 │   │   ├── sync_coordinator.py   # Orchestrates sync process
 │   │   ├── change_detector.py    # Detects changes
@@ -520,7 +730,7 @@ confluence-rag-system/
 │   │   ├── query_processor.py    # Query processing
 │   │   └── result_formatter.py   # Result formatting
 │   ├── models/                # Data models
-│   │   ├── page.py               # Page and chunk models
+│   │   ├── page.py               # Page and chunk models with LangChain mapping
 │   │   └── config.py             # Configuration models
 │   └── utils/                 # Shared utilities
 │       ├── config_loader.py      # Configuration management
@@ -541,6 +751,8 @@ confluence-rag-system/
 │   ├── health_check.py       # Health check endpoint
 │   └── verify_setup.py       # Verify installation
 ├── docs/                      # Documentation
+│   ├── PROVIDER_SWAPPING.md  # Provider swapping guide
+│   ├── API.md                # API reference
 │   ├── STREAMLIT_APP.md      # Query interface guide
 │   └── POSIT_CONNECT_DEPLOYMENT.md  # Deployment guide
 ├── pyproject.toml            # Project dependencies
@@ -671,6 +883,133 @@ For more troubleshooting tips, see the [Troubleshooting Guide](docs/TROUBLESHOOT
 - 8 GB RAM
 - 50 GB disk space (for large Confluence spaces)
 
+## Migration Guide
+
+### Migrating from Pre-LangChain Version
+
+If you're upgrading from a version that used direct sentence-transformers and custom vector store interfaces, follow these steps:
+
+#### 1. Update Dependencies
+
+The new version uses LangChain packages:
+
+```bash
+uv sync  # This will install the new dependencies
+```
+
+Key changes:
+- `langchain-core`: Base abstractions
+- `langchain-huggingface`: HuggingFace embeddings (wraps sentence-transformers)
+- `langchain-chroma`: Chroma integration
+- `sentence-transformers`: Now a transitive dependency (no direct import needed)
+
+#### 2. Configuration Changes
+
+**Old configuration** (no longer used):
+```yaml
+processing:
+  embedding_provider: "huggingface"  # REMOVED
+  embedding_model: "all-MiniLM-L6-v2"
+
+vector_store:
+  type: "chroma"
+  provider: "chroma"  # REMOVED
+  config:
+    persist_directory: "./chroma_db"
+    collection_name: "confluence_docs"
+```
+
+**New configuration** (simplified):
+```yaml
+processing:
+  embedding_model: "all-MiniLM-L6-v2"  # Only model name needed
+
+vector_store:
+  collection_name: "confluence_docs"
+  persist_directory: "./chroma_db"
+```
+
+Update your `config/default.yaml` to remove the `provider` fields.
+
+#### 3. Code Changes (If You Extended the System)
+
+**Old way** (direct imports):
+```python
+from src.processing.embedder import EmbeddingGenerator
+from src.storage.vector_store import ChromaStore
+
+embedder = EmbeddingGenerator(model_name="all-MiniLM-L6-v2")
+store = ChromaStore(persist_directory="./chroma_db")
+```
+
+**New way** (via providers module):
+```python
+from src.providers import get_embeddings, get_vector_store
+
+embeddings = get_embeddings(model_name="all-MiniLM-L6-v2")
+vector_store = get_vector_store(
+    embeddings=embeddings,
+    collection_name="confluence_docs",
+    persist_directory="./chroma_db"
+)
+```
+
+#### 4. Vector Database Compatibility
+
+The new version is **fully compatible** with existing Chroma databases. No re-ingestion is required.
+
+- Existing embeddings will work with the new system
+- Metadata format is preserved
+- Search results will be identical
+
+#### 5. API Changes
+
+**Embeddings:**
+- Old: `embedder.generate_embedding(text)` → New: `embeddings.embed_query(text)`
+- Old: `embedder.generate_batch_embeddings(texts)` → New: `embeddings.embed_documents(texts)`
+
+**Vector Store:**
+- Old: `store.add_documents(chunks, embeddings)` → New: `vector_store.add_documents(langchain_docs)`
+- Old: `store.search(embedding, k)` → New: `vector_store.similarity_search_with_score(query, k)`
+- Old: `store.delete_by_page_id(page_id)` → New: `vector_store.delete(ids)` (with metadata filtering)
+
+#### 6. Testing Your Migration
+
+After updating, verify everything works:
+
+```bash
+# Run tests
+uv run pytest
+
+# Verify setup
+uv run python scripts/verify_setup.py
+
+# Test query interface
+uv run python scripts/run_app.py
+```
+
+#### 7. Rollback Plan
+
+If you need to rollback:
+
+1. Checkout the previous version: `git checkout <previous-tag>`
+2. Reinstall dependencies: `uv sync`
+3. Your vector database will still work with the old version
+
+### Breaking Changes
+
+- **Removed modules**: `src/processing/embedder.py` and `src/storage/vector_store.py`
+- **Configuration**: Removed `provider` fields from config files
+- **Direct imports**: Can no longer import `EmbeddingGenerator` or `ChromaStore` directly
+
+### Benefits of Migration
+
+- **Flexibility**: Easily swap embedding and vector store providers
+- **Standardization**: Uses industry-standard LangChain interfaces
+- **Ecosystem**: Access to 100+ LangChain-compatible providers
+- **Maintainability**: Simpler codebase with fewer custom abstractions
+- **Future-proof**: Automatic compatibility with new LangChain features
+
 ## Contributing
 
 Contributions are welcome! Please follow these guidelines:
@@ -729,7 +1068,9 @@ This project uses the following open-source libraries:
 
 ## Related Documentation
 
+- [Provider Swapping Guide](docs/PROVIDER_SWAPPING.md) - **How to swap embeddings and vector stores**
+- [API Documentation](docs/API.md) - Component API reference with LangChain interfaces
+- [Migration Guide](#migration-guide) - Upgrading from pre-LangChain versions
 - [Streamlit App Guide](docs/STREAMLIT_APP.md) - Detailed query interface documentation
 - [Posit Connect Deployment](docs/POSIT_CONNECT_DEPLOYMENT.md) - Deployment instructions
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
-- [API Documentation](docs/API.md) - Component API reference

@@ -559,11 +559,17 @@ uv run streamlit run src/query/app.py --server.port 8502
 
 1. Verify the vector store contains data:
 ```python
-from src.storage.vector_store import ChromaStore
+from src.providers import get_embeddings, get_vector_store
 
-store = ChromaStore("./chroma_db", "confluence_docs")
-stats = store.get_collection_stats()
-print(f"Documents: {stats['count']}")
+embeddings = get_embeddings("all-MiniLM-L6-v2")
+vector_store = get_vector_store(
+    embeddings=embeddings,
+    persist_directory="./chroma_db",
+    collection_name="confluence_docs"
+)
+# Check if documents exist by attempting a search
+results = vector_store.similarity_search("test", k=1)
+print(f"Documents found: {len(results)}")
 ```
 
 2. Ensure ingestion completed successfully:
@@ -845,18 +851,22 @@ pages = client.get_space_pages("DOCS")
 print(f"Retrieved {len(pages)} pages")
 
 # Test embedding generation
-from src.processing.embedder import EmbeddingGenerator
+from src.providers import get_embeddings
 
-embedder = EmbeddingGenerator()
-embedding = embedder.generate_embedding("test query")
+embeddings = get_embeddings("all-MiniLM-L6-v2")
+embedding = embeddings.embed_query("test query")
 print(f"Embedding dimension: {len(embedding)}")
 
 # Test vector store
-from src.storage.vector_store import ChromaStore
+from src.providers import get_vector_store
 
-store = ChromaStore("./chroma_db", "confluence_docs")
-stats = store.get_collection_stats()
-print(f"Documents: {stats['count']}")
+vector_store = get_vector_store(
+    embeddings=embeddings,
+    persist_directory="./chroma_db",
+    collection_name="confluence_docs"
+)
+results = vector_store.similarity_search("test", k=1)
+print(f"Documents found: {len(results)}")
 ```
 
 ### Check System Resources

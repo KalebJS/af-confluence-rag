@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any
 
+from langchain_core.documents import Document
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
@@ -135,3 +136,113 @@ class SyncState(BaseModel):
             }
         }
     }
+
+
+# Document Mapping Functions
+
+
+def to_langchain_document(chunk: DocumentChunk) -> Document:
+    """Convert DocumentChunk to LangChain Document.
+    
+    Maps the DocumentChunk model to LangChain's Document format, preserving
+    all metadata fields including chunk_id, page_id, and chunk_index.
+    
+    Args:
+        chunk: DocumentChunk instance to convert
+        
+    Returns:
+        LangChain Document with content and metadata
+    """
+    # Create a copy of metadata and add chunk-specific fields
+    metadata = chunk.metadata.copy()
+    metadata["chunk_id"] = chunk.chunk_id
+    metadata["page_id"] = chunk.page_id
+    metadata["chunk_index"] = chunk.chunk_index
+    
+    return Document(
+        page_content=chunk.content,
+        metadata=metadata
+    )
+
+
+def from_langchain_document(doc: Document, chunk_id: str, page_id: str) -> DocumentChunk:
+    """Convert LangChain Document to DocumentChunk.
+    
+    Maps LangChain's Document format back to the DocumentChunk model,
+    extracting chunk-specific fields from metadata.
+    
+    Args:
+        doc: LangChain Document instance to convert
+        chunk_id: Unique chunk identifier (format: {page_id}_{chunk_index})
+        page_id: Parent page identifier
+        
+    Returns:
+        DocumentChunk instance with content and metadata
+    """
+    # Extract chunk_index from metadata or derive from chunk_id
+    metadata = doc.metadata.copy()
+    chunk_index = metadata.pop("chunk_index", None)
+    
+    # If chunk_index not in metadata, try to extract from chunk_id
+    if chunk_index is None:
+        try:
+            chunk_index = int(chunk_id.split("_")[-1])
+        except (ValueError, IndexError):
+            chunk_index = 0
+    
+    # Remove chunk_id and page_id from metadata if present (they're separate fields)
+    metadata.pop("chunk_id", None)
+    metadata.pop("page_id", None)
+    
+    return DocumentChunk(
+        chunk_id=chunk_id,
+        page_id=page_id,
+        content=doc.page_content,
+        metadata=metadata,
+        chunk_index=chunk_index
+    )
+
+
+def to_langchain_documents(chunks: list[DocumentChunk]) -> list[Document]:
+    """Convert a list of DocumentChunks to LangChain Documents.
+    
+    Batch conversion helper for processing multiple chunks at once.
+    
+    Args:
+        chunks: List of DocumentChunk instances to convert
+        
+    Returns:
+        List of LangChain Documents
+    """
+    return [to_langchain_document(chunk) for chunk in chunks]
+
+
+def from_langchain_documents(
+    docs: list[Document],
+    chunk_ids: list[str],
+    page_ids: list[str]
+) -> list[DocumentChunk]:
+    """Convert a list of LangChain Documents to DocumentChunks.
+    
+    Batch conversion helper for processing multiple documents at once.
+    
+    Args:
+        docs: List of LangChain Document instances to convert
+        chunk_ids: List of chunk identifiers (must match length of docs)
+        page_ids: List of page identifiers (must match length of docs)
+        
+    Returns:
+        List of DocumentChunk instances
+        
+    Raises:
+        ValueError: If lengths of docs, chunk_ids, and page_ids don't match
+    """
+    if not (len(docs) == len(chunk_ids) == len(page_ids)):
+        raise ValueError(
+            f"Length mismatch: docs={len(docs)}, chunk_ids={len(chunk_ids)}, page_ids={len(page_ids)}"
+        )
+    
+    return [
+        from_langchain_document(doc, chunk_id, page_id)
+        for doc, chunk_id, page_id in zip(docs, chunk_ids, page_ids)
+    ]

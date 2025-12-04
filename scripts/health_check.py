@@ -28,9 +28,8 @@ from pathlib import Path
 import structlog
 
 from src.ingestion.confluence_client import ConfluenceClient
-from src.processing.embedder import EmbeddingGenerator
+from src.providers import get_embeddings, get_vector_store
 from src.query.query_processor import QueryProcessor
-from src.storage.vector_store import ChromaStore
 from src.utils.config_loader import ConfigLoader
 
 log = structlog.stdlib.get_logger()
@@ -138,24 +137,22 @@ class HealthChecker:
             config_loader = ConfigLoader()
             config = config_loader.load_config(self.config_path)
 
-            vector_store = ChromaStore(
-                persist_directory=config.vector_store.config["persist_directory"],
-                collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
+            # Create embeddings and vector store using provider module
+            embeddings = get_embeddings(config.processing.embedding_model)
+            vector_store = get_vector_store(
+                embeddings=embeddings,
+                collection_name=config.vector_store.collection_name,
+                persist_directory=config.vector_store.persist_directory,
             )
 
             # Try a simple search to verify functionality
-            embedder = EmbeddingGenerator(model_name=config.processing.embedding_model)
-            test_embedding = embedder.generate_embedding("test query")
-
-            results = vector_store.search(
-                query_embedding=test_embedding, top_k=1, space_key=config.confluence.space_key
-            )
+            results = vector_store.similarity_search(query="test query", k=1)
 
             self.results[check_name] = {
                 "status": "pass",
                 "message": "Vector store is accessible",
                 "details": {
-                    "store_type": config.vector_store.type,
+                    "store_type": "chroma",
                     "documents_found": len(results),
                 },
             }
@@ -183,20 +180,18 @@ class HealthChecker:
             config_loader = ConfigLoader()
             config = config_loader.load_config(self.config_path)
 
-            embedder = EmbeddingGenerator(model_name=config.processing.embedding_model)
+            # Create embeddings using provider module
+            embeddings = get_embeddings(config.processing.embedding_model)
 
             # Generate a test embedding
             test_text = "This is a test sentence for embedding generation."
-            embedding = embedder.generate_embedding(test_text)
-
-            dimension = embedder.get_embedding_dimension()
+            embedding = embeddings.embed_query(test_text)
 
             self.results[check_name] = {
                 "status": "pass",
                 "message": "Embedding model is functional",
                 "details": {
                     "model_name": config.processing.embedding_model,
-                    "embedding_dimension": dimension,
                     "test_embedding_length": len(embedding),
                 },
             }
@@ -224,15 +219,16 @@ class HealthChecker:
             config_loader = ConfigLoader()
             config = config_loader.load_config(self.config_path)
 
-            embedder = EmbeddingGenerator(model_name=config.processing.embedding_model)
-
-            vector_store = ChromaStore(
-                persist_directory=config.vector_store.config["persist_directory"],
-                collection_name=config.vector_store.config.get("collection_name", "confluence_docs"),
+            # Create embeddings and vector store using provider module
+            embeddings = get_embeddings(config.processing.embedding_model)
+            vector_store = get_vector_store(
+                embeddings=embeddings,
+                collection_name=config.vector_store.collection_name,
+                persist_directory=config.vector_store.persist_directory,
             )
 
             query_processor = QueryProcessor(
-                embedder=embedder,
+                embeddings=embeddings,
                 vector_store=vector_store,
                 space_key=config.confluence.space_key,
             )
@@ -274,39 +270,30 @@ class HealthChecker:
             config_loader = ConfigLoader()
             config = config_loader.load_config(self.config_path)
 
-            if config.vector_store.type == "chroma":
-                persist_dir = Path(
-                    config.vector_store.config.get("persist_directory", "./chroma_db")
+            persist_dir = Path(config.vector_store.persist_directory)
+
+            if persist_dir.exists():
+                # Calculate directory size
+                total_size = sum(
+                    f.stat().st_size for f in persist_dir.rglob("*") if f.is_file()
                 )
+                size_mb = total_size / (1024 * 1024)
 
-                if persist_dir.exists():
-                    # Calculate directory size
-                    total_size = sum(
-                        f.stat().st_size for f in persist_dir.rglob("*") if f.is_file()
-                    )
-                    size_mb = total_size / (1024 * 1024)
-
-                    self.results[check_name] = {
-                        "status": "pass",
-                        "message": "Storage space check completed",
-                        "details": {
-                            "persist_directory": str(persist_dir),
-                            "size_mb": round(size_mb, 2),
-                        },
-                    }
-                else:
-                    self.results[check_name] = {
-                        "status": "warn",
-                        "message": "Vector store directory does not exist yet",
-                        "details": {
-                            "persist_directory": str(persist_dir),
-                        },
-                    }
+                self.results[check_name] = {
+                    "status": "pass",
+                    "message": "Storage space check completed",
+                    "details": {
+                        "persist_directory": str(persist_dir),
+                        "size_mb": round(size_mb, 2),
+                    },
+                }
             else:
                 self.results[check_name] = {
-                    "status": "skip",
-                    "message": f"Storage check not applicable for {config.vector_store.type}",
-                    "details": {},
+                    "status": "warn",
+                    "message": "Vector store directory does not exist yet",
+                    "details": {
+                        "persist_directory": str(persist_dir),
+                    },
                 }
 
             return True

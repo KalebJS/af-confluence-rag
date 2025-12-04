@@ -78,8 +78,8 @@ def test_property_24_environment_variable_loading():
     os.environ["APP_PROCESSING__CHUNK_SIZE"] = "1000"
     os.environ["APP_PROCESSING__CHUNK_OVERLAP"] = "200"
     os.environ["APP_PROCESSING__EMBEDDING_MODEL"] = "all-MiniLM-L6-v2"
-    os.environ["APP_VECTOR_STORE__TYPE"] = "chroma"
-    os.environ["APP_VECTOR_STORE__CONFIG"] = "{}"
+    os.environ["APP_VECTOR_STORE__COLLECTION_NAME"] = "confluence_docs"
+    os.environ["APP_VECTOR_STORE__PERSIST_DIRECTORY"] = "./chroma_db"
     os.environ["APP_TOP_K_RESULTS"] = "10"
 
     try:
@@ -99,7 +99,8 @@ def test_property_24_environment_variable_loading():
         assert config.processing.embedding_model == "all-MiniLM-L6-v2"
 
         # Verify vector store config
-        assert config.vector_store.type == "chroma"
+        assert config.vector_store.collection_name == "confluence_docs"
+        assert config.vector_store.persist_directory == "./chroma_db"
 
         # Verify top_k_results
         assert config.top_k_results == 10
@@ -114,8 +115,8 @@ def test_property_24_environment_variable_loading():
             "APP_PROCESSING__CHUNK_SIZE",
             "APP_PROCESSING__CHUNK_OVERLAP",
             "APP_PROCESSING__EMBEDDING_MODEL",
-            "APP_VECTOR_STORE__TYPE",
-            "APP_VECTOR_STORE__CONFIG",
+            "APP_VECTOR_STORE__COLLECTION_NAME",
+            "APP_VECTOR_STORE__PERSIST_DIRECTORY",
             "APP_TOP_K_RESULTS",
         ]:
             os.environ.pop(key, None)
@@ -158,10 +159,8 @@ processing:
   embedding_model: "all-MiniLM-L6-v2"
 
 vector_store:
-  type: "chroma"
-  config:
-    persist_directory: "./test_chroma_db"
-    collection_name: "test_docs"
+  collection_name: "test_docs"
+  persist_directory: "./test_chroma_db"
 
 top_k_results: 15
 """)
@@ -175,9 +174,8 @@ top_k_results: 15
         assert config.processing.chunk_size == 1500
         assert config.processing.chunk_overlap == 300
         assert config.processing.embedding_model == "all-MiniLM-L6-v2"
-        assert config.vector_store.type == "chroma"
-        assert config.vector_store.config["persist_directory"] == "./test_chroma_db"
-        assert config.vector_store.config["collection_name"] == "test_docs"
+        assert config.vector_store.collection_name == "test_docs"
+        assert config.vector_store.persist_directory == "./test_chroma_db"
         assert config.top_k_results == 15
 
         # Verify environment variable substitution worked
@@ -228,10 +226,8 @@ processing:
   embedding_model: "all-MiniLM-L6-v2"
 
 vector_store:
-  type: "chroma"
-  config:
-    persist_directory: "./chroma_db"
-    collection_name: "docs"
+  collection_name: "docs"
+  persist_directory: "./chroma_db"
 
 top_k_results: 10
 """)
@@ -290,10 +286,8 @@ processing:
   embedding_model: "all-MiniLM-L6-v2"
 
 vector_store:
-  type: "chroma"
-  config:
-    persist_directory: "./chroma_db"
-    collection_name: "docs"
+  collection_name: "docs"
+  persist_directory: "./chroma_db"
 
 top_k_results: 10
 """)

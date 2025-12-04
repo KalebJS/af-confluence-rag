@@ -4,12 +4,14 @@ from datetime import datetime
 from typing import Any
 
 import structlog
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
 
 from src.ingestion.confluence_client import ConfluenceClient
-from src.models.page import Page, SyncState
+from src.models.config import ProcessingConfig, VectorStoreConfig
+from src.models.page import Page, SyncState, to_langchain_documents
 from src.processing.chunker import DocumentChunker
-from src.processing.embedder import EmbeddingGenerator
-from src.storage.vector_store import VectorStoreInterface
+from src.providers import get_embeddings, get_vector_store
 from src.sync.change_detector import ChangeDetector
 from src.sync.models import ChangeSet, SyncReport
 from src.sync.timestamp_tracker import TimestampTracker
@@ -23,25 +25,47 @@ class SyncCoordinator:
     def __init__(
         self,
         confluence_client: ConfluenceClient,
-        vector_store: VectorStoreInterface,
         chunker: DocumentChunker,
-        embedder: EmbeddingGenerator,
+        embeddings: Embeddings | None = None,
+        vector_store: VectorStore | None = None,
+        processing_config: ProcessingConfig | None = None,
+        vector_store_config: VectorStoreConfig | None = None,
     ):
         """
         Initialize sync coordinator.
 
         Args:
             confluence_client: Client for Confluence API
-            vector_store: Vector store for document storage
             chunker: Document chunker for text processing
-            embedder: Embedding generator for vectorization
+            embeddings: Optional embeddings instance (uses provider module if None)
+            vector_store: Optional vector store instance (uses provider module if None)
+            processing_config: Optional processing config (required if embeddings is None)
+            vector_store_config: Optional vector store config (required if vector_store is None)
         """
         self._confluence_client: ConfluenceClient = confluence_client
-        self._vector_store: VectorStoreInterface = vector_store
         self._chunker: DocumentChunker = chunker
-        self._embedder: EmbeddingGenerator = embedder
+        
+        # Use provided instances or create from config via provider module
+        if embeddings is not None:
+            self._embeddings: Embeddings = embeddings
+        else:
+            if processing_config is None:
+                raise ValueError("processing_config is required when embeddings is not provided")
+            self._embeddings = get_embeddings(processing_config.embedding_model)
+        
+        if vector_store is not None:
+            self._vector_store: VectorStore = vector_store
+        else:
+            if vector_store_config is None:
+                raise ValueError("vector_store_config is required when vector_store is not provided")
+            self._vector_store = get_vector_store(
+                self._embeddings,
+                vector_store_config.collection_name,
+                vector_store_config.persist_directory,
+            )
+        
         self._change_detector: ChangeDetector = ChangeDetector()
-        self._timestamp_tracker: TimestampTracker = TimestampTracker(vector_store)
+        self._timestamp_tracker: TimestampTracker = TimestampTracker(self._vector_store)
 
         log.info("sync_coordinator_initialized")
 
@@ -226,7 +250,7 @@ class SyncCoordinator:
         # Process deleted pages
         for page_id in changes.deleted_page_ids:
             try:
-                self._vector_store.delete_by_page_id(page_id)
+                self._delete_by_page_id(page_id)
                 pages_deleted += 1
             except Exception as e:
                 error_msg = f"Failed to delete page {page_id}: {str(e)}"
@@ -237,7 +261,7 @@ class SyncCoordinator:
         for page in changes.modified_pages:
             try:
                 # Delete old version
-                self._vector_store.delete_by_page_id(page.id)
+                self._delete_by_page_id(page.id)
 
                 # Add new version
                 self._process_and_store_page(page)
@@ -291,9 +315,18 @@ class SyncCoordinator:
 
         for page in confluence_pages:
             try:
-                metadata = self._vector_store.get_document_metadata(page.id)
-                if metadata:
-                    stored_metadata[page.id] = metadata
+                # Use similarity_search with metadata filter to check if page exists
+                # Search for documents with this page_id
+                results = self._vector_store.similarity_search(
+                    query="",  # Empty query, we only care about metadata filter
+                    k=1,
+                    filter={"page_id": page.id}
+                )
+                
+                if results:
+                    # Extract metadata from first result
+                    metadata_dict: dict[str, Any] = dict(results[0].metadata)
+                    stored_metadata[page.id] = metadata_dict
             except Exception as e:
                 log.warning(
                     "failed_to_get_stored_metadata",
@@ -320,12 +353,11 @@ class SyncCoordinator:
             log.warning("no_chunks_generated", page_id=page.id, page_title=page.title)
             return
 
-        # Generate embeddings
-        texts = [chunk.content for chunk in chunks]
-        embeddings = self._embedder.generate_batch_embeddings(texts)
+        # Convert to LangChain Documents
+        langchain_docs = to_langchain_documents(chunks)
 
-        # Store in vector database
-        self._vector_store.add_documents(chunks, embeddings)
+        # Store in vector database (embeddings are generated automatically)
+        self._vector_store.add_documents(langchain_docs)
 
         log.info(
             "page_processed_and_stored",
@@ -333,8 +365,93 @@ class SyncCoordinator:
             page_title=page.title,
             chunk_count=len(chunks),
         )
+    
+    def _delete_by_page_id(self, page_id: str) -> None:
+        """
+        Delete all chunks associated with a page using metadata-based filtering.
+        
+        This method handles deletion using LangChain's VectorStore interface.
+        For Chroma, we use the get() method to retrieve document IDs by metadata filter,
+        then delete those IDs.
+        
+        Args:
+            page_id: Unique identifier of the page to delete
+            
+        Raises:
+            RuntimeError: If deletion operation fails
+        """
+        try:
+            # For Chroma, we need to use the underlying collection's get method
+            # to retrieve document IDs by metadata filter
+            if hasattr(self._vector_store, '_collection'):
+                # Access Chroma collection directly
+                collection = self._vector_store._collection
+                
+                # Get documents with this page_id using metadata filter
+                results = collection.get(
+                    where={"page_id": page_id},
+                    include=[]  # We only need IDs, not embeddings or documents
+                )
+                
+                ids_to_delete = results.get('ids', [])
+                
+                if ids_to_delete:
+                    # Delete using the collection's delete method
+                    collection.delete(ids=ids_to_delete)
+                    log.info(
+                        "page_deleted_from_vector_store",
+                        page_id=page_id,
+                        chunks_deleted=len(ids_to_delete)
+                    )
+                else:
+                    log.info("page_not_found_for_deletion", page_id=page_id)
+            else:
+                # Fallback for other vector stores: try similarity_search + delete
+                results = self._vector_store.similarity_search(
+                    query="",  # Empty query, we only care about metadata filter
+                    k=1000,  # Large number to get all chunks
+                    filter={"page_id": page_id}
+                )
+                
+                if not results:
+                    log.info("page_not_found_for_deletion", page_id=page_id)
+                    return
+                
+                # Extract IDs from results - try chunk_id from metadata
+                ids_to_delete: list[str] = []
+                for doc in results:
+                    metadata_dict: dict[str, Any] = dict(doc.metadata)
+                    doc_id = metadata_dict.get("chunk_id")
+                    if doc_id and isinstance(doc_id, str):
+                        ids_to_delete.append(doc_id)
+                
+                if ids_to_delete:
+                    try:
+                        _ = self._vector_store.delete(ids_to_delete)
+                        log.info(
+                            "page_deleted_from_vector_store",
+                            page_id=page_id,
+                            chunks_deleted=len(ids_to_delete)
+                        )
+                    except (AttributeError, NotImplementedError) as e:
+                        log.warning(
+                            "vector_store_delete_not_supported",
+                            page_id=page_id,
+                            error=str(e),
+                            message="Vector store does not support deletion. Documents may remain in store."
+                        )
+                else:
+                    log.warning(
+                        "no_document_ids_found_for_deletion",
+                        page_id=page_id,
+                        results_count=len(results)
+                    )
+                
+        except Exception as e:
+            log.error("delete_by_page_id_failed", page_id=page_id, error=str(e))
+            raise RuntimeError(f"Failed to delete page from vector store: {e}") from e
 
-    def _count_total_chunks(self, space_key: str) -> int:  # noqa: ARG002
+    def _count_total_chunks(self, space_key: str) -> int:
         """
         Count total chunks in vector store for a space.
 
@@ -347,6 +464,7 @@ class SyncCoordinator:
         Returns:
             Estimated chunk count
         """
+        _ = space_key  # Unused parameter, kept for interface compatibility
         # For now, return 0 as we don't have a direct way to count
-        # This could be improved by adding a count method to VectorStoreInterface
+        # This could be improved by adding a count method to VectorStore
         return 0

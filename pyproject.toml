@@ -8,9 +8,10 @@ dependencies = [
     "atlassian-python-api>=3.41.0",
     "langchain>=0.1.0",
     "langchain-community>=0.0.20",
-    "langchain-core>=0.1.0",
+    "langchain-core>=0.3.0",
     "langchain-text-splitters>=0.0.1",
     "langchain-chroma>=0.1.0",
+    "langchain-huggingface>=0.1.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "streamlit>=1.30.0",
@@ -61,3 +62,10 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.148.5",
+    "pytest>=9.0.1",
+    "pytest-cov>=7.0.0",
+]

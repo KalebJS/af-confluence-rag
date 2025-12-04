@@ -3,9 +3,10 @@
 from datetime import datetime
 
 import structlog
+from langchain_core.documents import Document
+from langchain_core.vectorstores import VectorStore
 
 from src.models.page import SyncState
-from src.storage.vector_store import VectorStoreInterface
 
 log = structlog.stdlib.get_logger()
 
@@ -16,14 +17,14 @@ class TimestampTracker:
     # Special metadata key for storing sync state
     SYNC_STATE_PAGE_ID: str = "__sync_state__"
 
-    def __init__(self, vector_store: VectorStoreInterface):
+    def __init__(self, vector_store: VectorStore):
         """
         Initialize timestamp tracker.
 
         Args:
-            vector_store: Vector store interface for persistence
+            vector_store: LangChain VectorStore instance for persistence
         """
-        self._vector_store: VectorStoreInterface = vector_store
+        self._vector_store: VectorStore = vector_store
         log.info("timestamp_tracker_initialized")
 
     def save_sync_state(self, sync_state: SyncState) -> None:
@@ -48,46 +49,33 @@ class TimestampTracker:
         )
 
         try:
-            # Store sync state as metadata
-            # We use the vector store's internal storage mechanism
-            # Since we can't add documents without embeddings, we'll use
-            # a workaround: store it as metadata on a special document
-            import numpy as np
-
-            from src.models.page import DocumentChunk
-            from src.storage.vector_store import ChromaStore
-
             chunk_id = f"{self.SYNC_STATE_PAGE_ID}_{sync_state.space_key}"
 
             # Delete existing sync state for this space if it exists
-            # Chroma's upsert behavior with add_documents might not update metadata correctly
-            if isinstance(self._vector_store, ChromaStore):
-                try:
-                    self._vector_store._collection.delete(ids=[chunk_id])
-                except Exception:
-                    # It's okay if it doesn't exist
-                    pass
+            try:
+                # Try to delete using the vector store's delete method
+                self._vector_store.delete([chunk_id])
+            except (AttributeError, NotImplementedError, Exception):
+                # It's okay if delete is not supported or document doesn't exist
+                pass
 
-            # Create a special chunk to hold sync state
-            sync_chunk = DocumentChunk(
-                chunk_id=chunk_id,
-                page_id=self.SYNC_STATE_PAGE_ID,
-                content=f"Sync state for space {sync_state.space_key}",
+            # Create a LangChain Document to hold sync state
+            sync_doc = Document(
+                page_content=f"Sync state for space {sync_state.space_key}",
                 metadata={
+                    "chunk_id": chunk_id,
+                    "page_id": self.SYNC_STATE_PAGE_ID,
                     "space_key": sync_state.space_key,
                     "last_sync_timestamp": sync_state.last_sync_timestamp.isoformat(),
                     "page_count": sync_state.page_count,
                     "chunk_count": sync_state.chunk_count,
                     "is_sync_state": True,
+                    "chunk_index": 0,
                 },
-                chunk_index=0,
             )
 
-            # Create a zero embedding (we don't care about the embedding for metadata)
-            # Get embedding dimension from a test query or use a standard dimension
-            zero_embedding = np.zeros(384)  # all-MiniLM-L6-v2 has 384 dimensions
-
-            self._vector_store.add_documents([sync_chunk], [zero_embedding])
+            # Add document to vector store (embeddings generated automatically)
+            self._vector_store.add_documents([sync_doc], ids=[chunk_id])
 
             log.info("sync_state_saved", space_key=sync_state.space_key)
 
@@ -115,34 +103,25 @@ class TimestampTracker:
         log.info("loading_sync_state", space_key=space_key)
 
         try:
-            # We need to search for the specific sync state by chunk_id
-            # since multiple spaces can have sync states
-            chunk_id = f"{self.SYNC_STATE_PAGE_ID}_{space_key}"
+            # Search for sync state using metadata filter
+            # Chroma requires $and operator for multiple conditions
+            results = self._vector_store.similarity_search(
+                query="",  # Empty query, we only care about metadata filter
+                k=1,
+                filter={
+                    "$and": [
+                        {"page_id": self.SYNC_STATE_PAGE_ID},
+                        {"space_key": space_key},
+                        {"is_sync_state": True}
+                    ]
+                }
+            )
 
-            # Access the underlying collection to query by chunk_id
-            from src.storage.vector_store import ChromaStore
+            if not results:
+                log.info("no_sync_state_found", space_key=space_key)
+                return None
 
-            if isinstance(self._vector_store, ChromaStore):
-                # Use Chroma's get method to retrieve by ID
-                results = self._vector_store._collection.get(ids=[chunk_id], include=["metadatas"])
-
-                if not results["ids"] or not results["metadatas"]:
-                    log.info("no_sync_state_found", space_key=space_key)
-                    return None
-
-                metadata = results["metadatas"][0]
-            else:
-                # Fallback for other vector store implementations
-                metadata = self._vector_store.get_document_metadata(self.SYNC_STATE_PAGE_ID)
-
-                if not metadata:
-                    log.info("no_sync_state_found", space_key=space_key)
-                    return None
-
-                # Verify it's for the correct space
-                if metadata.get("space_key") != space_key:
-                    log.info("no_sync_state_found", space_key=space_key)
-                    return None
+            metadata = results[0].metadata
 
             # Check if this is actually sync state metadata
             if not metadata.get("is_sync_state"):

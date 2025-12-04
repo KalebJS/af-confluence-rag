@@ -1,10 +1,12 @@
 """Query processing functionality for semantic search."""
 
 import structlog
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
 
-from src.models.page import SearchResult
-from src.processing.embedder import EmbeddingGenerator
-from src.storage.vector_store import VectorStoreInterface
+from src.models.config import ProcessingConfig, VectorStoreConfig
+from src.models.page import SearchResult, from_langchain_document
+from src.providers import get_embeddings, get_vector_store
 
 log = structlog.stdlib.get_logger()
 
@@ -18,23 +20,60 @@ class QueryProcessor:
 
     def __init__(
         self,
-        embedder: EmbeddingGenerator,
-        vector_store: VectorStoreInterface,
+        embeddings: Embeddings | None = None,
+        vector_store: VectorStore | None = None,
+        processing_config: ProcessingConfig | None = None,
+        vector_store_config: VectorStoreConfig | None = None,
     ) -> None:
         """Initialize the query processor.
 
         Args:
-            embedder: Embedding generator for converting queries to vectors
-            vector_store: Vector store interface for similarity search
-        """
-        self.embedder = embedder
-        self.vector_store = vector_store
+            embeddings: Optional Embeddings instance. If not provided, will be created
+                from processing_config using the provider module.
+            vector_store: Optional VectorStore instance. If not provided, will be created
+                from vector_store_config using the provider module.
+            processing_config: Configuration for creating embeddings (required if embeddings not provided)
+            vector_store_config: Configuration for creating vector store (required if vector_store not provided)
 
-        log.info(
-            "query_processor_initialized",
-            embedding_model=embedder.model_name,
-            embedding_dimension=embedder.get_embedding_dimension(),
-        )
+        Raises:
+            ValueError: If neither embeddings nor processing_config is provided, or
+                if neither vector_store nor vector_store_config is provided
+        """
+        # Handle embeddings - either use provided instance or create from config
+        if embeddings is not None:
+            self.embeddings = embeddings
+            log.info("query_processor_using_provided_embeddings")
+        elif processing_config is not None:
+            self.embeddings = get_embeddings(processing_config.embedding_model)
+            log.info(
+                "query_processor_created_embeddings_from_config",
+                embedding_model=processing_config.embedding_model,
+            )
+        else:
+            raise ValueError(
+                "Either embeddings instance or processing_config must be provided"
+            )
+
+        # Handle vector store - either use provided instance or create from config
+        if vector_store is not None:
+            self.vector_store = vector_store
+            log.info("query_processor_using_provided_vector_store")
+        elif vector_store_config is not None:
+            self.vector_store = get_vector_store(
+                embeddings=self.embeddings,
+                collection_name=vector_store_config.collection_name,
+                persist_directory=vector_store_config.persist_directory,
+            )
+            log.info(
+                "query_processor_created_vector_store_from_config",
+                collection_name=vector_store_config.collection_name,
+            )
+        else:
+            raise ValueError(
+                "Either vector_store instance or vector_store_config must be provided"
+            )
+
+        log.info("query_processor_initialized")
 
     def process_query(
         self,
@@ -44,10 +83,9 @@ class QueryProcessor:
         """Process a search query and return relevant results.
 
         This method:
-        1. Converts the query text to a vector embedding
-        2. Searches the vector store for similar documents
-        3. Ranks results by similarity score (descending)
-        4. Filters and deduplicates results
+        1. Uses LangChain's VectorStore to perform similarity search with scores
+        2. Converts LangChain Documents to SearchResult objects
+        3. Filters and deduplicates results
 
         Args:
             query: Natural language search query
@@ -72,24 +110,22 @@ class QueryProcessor:
         log.info("processing_query", query_length=len(query), top_k=top_k)
 
         try:
-            # Step 1: Generate query embedding
-            query_embedding = self.embedder.generate_embedding(query)
+            # Use LangChain's similarity_search_with_score method
+            # This handles embedding generation and search internally
+            docs_with_scores = self.vector_store.similarity_search_with_score(
+                query=query,
+                k=top_k,
+            )
 
             log.debug(
-                "query_embedding_generated",
-                embedding_shape=query_embedding.shape,
+                "vector_search_completed",
+                results_count=len(docs_with_scores),
             )
 
-            # Step 2: Search vector store
-            results = self.vector_store.search(
-                query_embedding=query_embedding,
-                top_k=top_k,
-            )
+            # Convert LangChain Documents to SearchResult objects
+            results = self._convert_to_search_results(docs_with_scores)
 
-            # Step 3: Results are already ranked by similarity score (descending)
-            # from the vector store implementation
-
-            # Step 4: Filter and deduplicate results
+            # Filter and deduplicate results
             filtered_results = self._filter_and_deduplicate(results)
 
             log.info(
@@ -112,6 +148,70 @@ class QueryProcessor:
                 error=str(e),
             )
             raise RuntimeError(f"Failed to process query: {e}") from e
+
+    def _convert_to_search_results(
+        self,
+        docs_with_scores: list[tuple[any, float]],
+    ) -> list[SearchResult]:
+        """Convert LangChain Documents with scores to SearchResult objects.
+
+        Args:
+            docs_with_scores: List of (Document, score) tuples from vector store
+
+        Returns:
+            List of SearchResult objects
+
+        Raises:
+            ValueError: If document metadata is missing required fields
+        """
+        results: list[SearchResult] = []
+
+        for doc, score in docs_with_scores:
+            try:
+                # Extract required fields from metadata
+                chunk_id = doc.metadata.get("chunk_id")
+                page_id = doc.metadata.get("page_id")
+                page_title = doc.metadata.get("page_title")
+                page_url = doc.metadata.get("page_url")
+
+                if not all([chunk_id, page_id, page_title, page_url]):
+                    log.warning(
+                        "document_missing_required_metadata",
+                        chunk_id=chunk_id,
+                        page_id=page_id,
+                        has_title=bool(page_title),
+                        has_url=bool(page_url),
+                    )
+                    continue
+
+                # Create a copy of metadata without the fields we're extracting
+                metadata = doc.metadata.copy()
+                metadata.pop("chunk_id", None)
+                metadata.pop("page_id", None)
+                metadata.pop("page_title", None)
+                metadata.pop("page_url", None)
+                metadata.pop("chunk_index", None)
+
+                result = SearchResult(
+                    chunk_id=chunk_id,
+                    page_id=page_id,
+                    page_title=page_title,
+                    page_url=page_url,
+                    content=doc.page_content,
+                    similarity_score=score,
+                    metadata=metadata,
+                )
+                results.append(result)
+
+            except Exception as e:
+                log.warning(
+                    "failed_to_convert_document_to_search_result",
+                    error=str(e),
+                    metadata=doc.metadata,
+                )
+                continue
+
+        return results
 
     def _filter_and_deduplicate(
         self,

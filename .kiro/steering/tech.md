@@ -7,13 +7,26 @@
 
 ## Core Dependencies
 
+### LangChain Ecosystem
+- **langchain-core**: Base abstractions for Embeddings and VectorStore interfaces
+- **langchain-huggingface**: HuggingFace embeddings (wraps sentence-transformers, default provider)
+- **langchain-chroma**: Chroma vector store integration (default provider)
 - **LangChain**: Document processing and text splitting
-- **Chroma**: Vector database for embeddings storage
-- **sentence-transformers**: Embedding generation (default model: all-MiniLM-L6-v2)
+
+### Vector & Embeddings
+- **chromadb**: Vector database for embeddings storage (default)
+- **sentence-transformers**: Transitive dependency via langchain-huggingface (default model: all-MiniLM-L6-v2)
+
+### Application Framework
 - **Streamlit**: Web interface framework
 - **atlassian-python-api**: Confluence API client
 - **Pydantic**: Data validation and settings management
 - **structlog**: Structured logging
+
+### Provider Architecture
+- **Centralized providers module** (`src/providers.py`): Single location for swapping embeddings and vector store implementations
+- **Dependency injection support**: Services accept custom Embeddings and VectorStore instances
+- **Easy provider swapping**: Modify one file to change providers system-wide
 
 ## Development Tools
 
